@@ -4,5 +4,6 @@ version = "0.1.0"
 authors = ["mrobakowski <mrobakowski@networkedassets.org>"]
 
 [dependencies]
-typenum="1.4.0"
-generic-array = "0.5.1"
+rayon = "0.4.3"
+rand = "0.3"
+nalgebra = "0.10.1"

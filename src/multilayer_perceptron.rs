@@ -1,105 +1,68 @@
-use generic_array::{ArrayLength, GenericArray};
-use typenum::consts::{U8, U2};
-use hlist::LayerHList;
+use rand;
+use activation_func::{ActivationFunction, Sigmoid};
+use na::{DMatrix, DVector, Dot};
+use rayon::prelude::*;
+use std;
 
-#[derive(Default, Copy, Clone, Debug)]
-pub struct StaticNeuron<N: ArrayLength<f64>> {
-    weights: GenericArray<f64, N>
-}
-
-pub struct DynamicNeuron {
-    weights: Vec<f64>
-}
-
-pub trait Neuron {
-    fn get_weights(&self) -> &[f64];
-    fn get_mut_weights(&mut self) -> &mut [f64];
-}
-
-impl<N: ArrayLength<f64>> Neuron for StaticNeuron<N> {
-    fn get_weights(&self) -> &[f64] {
-        &self.weights
-    }
-
-    fn get_mut_weights(&mut self) -> &mut [f64] {
-        &mut self.weights
-    }
-}
-
-impl Neuron for DynamicNeuron {
-    fn get_weights(&self) -> &[f64] {
-        &self.weights
-    }
-
-    fn get_mut_weights(&mut self) -> &mut [f64] {
-        &mut self.weights
-    }
+fn make_dvector_with_bias(x: &[f64]) -> DVector<f64> {
+    let mut i = DVector::from_slice(x.len(), x);
+    i.at.push(1.0);
+    i
 }
 
 #[derive(Clone, Debug)]
-pub struct StaticLayer<N: ArrayLength<StaticNeuron<Prev>>, Prev: ArrayLength<f64>> {
-    neurons: GenericArray<StaticNeuron<Prev>, N>
+pub struct Layer {
+    neurons: DMatrix<f64>
 }
 
-impl<N: ArrayLength<StaticNeuron<Prev>>, Prev: ArrayLength<f64>> Default for StaticLayer<N, Prev> {
-    fn default() -> Self {
-        StaticLayer { neurons: GenericArray::<StaticNeuron<Prev>, N>::new() }
+impl Layer {
+    fn activate<A>(&self, f: A, inputs: DVector<f64>) -> DVector<f64> where A: ActivationFunction {
+        inputs * &self.neurons
+    }
+}
+
+pub struct MultilayerPerceptron {
+    hidden_layers: Vec<Layer>,
+    output_layer: Layer
+}
+
+impl MultilayerPerceptron {
+    fn new(inputs: usize, hidden_layers: &[usize], outputs: usize) -> MultilayerPerceptron {
+        let mut hidden = Vec::with_capacity(hidden_layers.len());
+        let mut prev_layer_size = inputs + 1;
+
+        for i in 0..hidden_layers.len() {
+            hidden.push(Layer {
+                neurons: DMatrix::from_fn(prev_layer_size, hidden_layers[i], |_, _| rand::random())
+            });
+            prev_layer_size = hidden_layers[i];
+        }
+
+        let output = Layer {
+            neurons: DMatrix::from_fn(prev_layer_size, outputs, |_, _| rand::random())
+        };
+
+        MultilayerPerceptron {
+            hidden_layers: hidden,
+            output_layer: output,
+        }
+    }
+
+    fn feed_forward<A>(&self, f: A, inputs: &[f64]) -> DVector<f64> where A: ActivationFunction {
+        let mut signal = make_dvector_with_bias(inputs);
+
+        for layer in &self.hidden_layers {
+            signal = layer.activate(f, signal);
+        }
+
+        self.output_layer.activate(f, signal)
     }
 }
 
 #[test]
-fn test_layer_length() {
-    let x: StaticLayer<U8, U2> = Default::default();
-    assert!(x.neurons.len() == 8)
+fn test_feedforward_matrices_sizes() {
+    let inputs = [1.0, 2.0, 3.0, -1.0];
+    let perc = MultilayerPerceptron::new(inputs.len(), &[2, 3, 6, 2], 2);
+    let out = perc.feed_forward(Sigmoid(1.0), &inputs);
+    assert!(out.len() == 2);
 }
-
-#[derive(Default, Clone, Debug)]
-pub struct DynamicLayer {
-    neurons: Vec<DynamicNeuron>
-}
-
-pub trait Layer {
-    type NeuronT: Neuron;
-
-    fn get_neurons(&self) -> &[Self::NeuronT];
-    fn get_mut_neurons(&mut self) -> &mut [Self::NeuronT];
-
-    fn size(&self) -> usize {
-        self.get_neurons().len()
-    }
-}
-
-impl Layer for DynamicLayer {
-    type NeuronT = DynamicNeuron;
-    fn get_neurons(&self) -> &[Self::NeuronT] {
-        &self.neurons
-    }
-
-    fn get_mut_neurons(&mut self) -> &mut [Self::NeuronT] {
-        &mut self.neurons
-    }
-}
-
-impl<N, Prev> Layer for StaticLayer<N, Prev>
-where N: ArrayLength<StaticNeuron<Prev>>, Prev: ArrayLength<f64> {
-    type NeuronT = StaticNeuron<Prev>;
-    fn get_neurons(&self) -> &[Self::NeuronT] {
-        &self.neurons
-    }
-
-    fn get_mut_neurons(&mut self) -> &mut [Self::NeuronT] {
-        &mut self.neurons
-    }
-}
-
-pub struct MultilayerPerceptron<InputLayer, HiddenLayers, OutputLayer> where
-    InputLayer: Layer,
-    HiddenLayers: LayerHList,
-    OutputLayer: Layer
-{
-    input_layer: InputLayer,
-    hidden_layers: HiddenLayers,
-    output_layer: OutputLayer
-}
-
-

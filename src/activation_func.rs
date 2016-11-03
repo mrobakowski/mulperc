@@ -1,9 +1,10 @@
-pub trait ActivationFunction {
+pub trait ActivationFunction: Send + Sync + Copy {
     fn function(&self, x: f64) -> f64;
     fn dereviative(&self, x: f64) -> f64;
 }
 
-pub struct Sigmoid(f64);
+#[derive(Debug, Copy, Clone)]
+pub struct Sigmoid(pub f64);
 
 impl Sigmoid {
     pub fn new(a: f64) -> Self { Sigmoid(a) }
@@ -25,7 +26,8 @@ impl ActivationFunction for Sigmoid {
     }
 }
 
-pub struct Linear(f64);
+#[derive(Debug, Copy, Clone)]
+pub struct Linear(pub f64);
 
 impl Linear {
     pub fn new(a: f64) -> Self { Linear(a) }
