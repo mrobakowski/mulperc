@@ -1,0 +1,8 @@
+[package]
+name = "mulperc"
+version = "0.1.0"
+authors = ["mrobakowski <mrobakowski@networkedassets.org>"]
+
+[dependencies]
+typenum="1.4.0"
+generic-array = "0.5.1"
