@@ -23,7 +23,8 @@ impl Layer {
     }
 
     fn activate(&self, inputs: DVector<f64>) -> DVector<f64> {
-        let mut res = inputs * &self.neurons;
+        let mut res = inputs;
+        res *= &self.neurons;
         for i in 0..res.len() {
             res[i] = self.activation_function.function(res[i]);
         }
@@ -33,11 +34,13 @@ impl Layer {
 
 pub struct MultilayerPerceptron {
     hidden_layers: Vec<Layer>,
-    output_layer: Layer
+    output_layer: Layer,
+    learning_rate: f64
 }
 
 impl MultilayerPerceptron {
     fn new(
+        learning_rate: f64,
         inputs: usize,
         hidden_layers: &[(usize, ActivationFunctionEnum)],
         outputs: (usize, ActivationFunctionEnum)
@@ -61,33 +64,60 @@ impl MultilayerPerceptron {
         MultilayerPerceptron {
             hidden_layers: hidden,
             output_layer: output,
+            learning_rate: learning_rate
         }
     }
 
-    fn feed_forward(&self, inputs: &[f64]) -> DVector<f64> {
-        let mut signal = make_dvector_with_bias(inputs);
+    fn feed_forward(&self, input: &[f64]) -> (DVector<f64>, Vec<DVector<f64>>) {
+        let layer_outputs = Vec::with_capacity(self.hidden_layers.len() + 2);
+        let mut signal = make_dvector_with_bias(input);
+        layer_outputs.push(signal);
 
         for layer in &self.hidden_layers {
             signal = layer.activate(signal);
+            layer_outputs.push(signal);
         }
 
-        self.output_layer.activate(signal)
+        let out = self.output_layer.activate(signal);
+        layer_outputs.push(out);
+        (out, layer_outputs)
     }
+
+    fn backpropagate(&mut self, input: &[f64], target: &[f64]) {
+        let expected_output = DVector::from_slice(target.len(), target);
+        let (final_out, steps) = self.feed_forward(input);
+        if final_out.len() != expected_output.len() {
+            panic!("expected_output has wrong length: expected: {}, given: {}",
+                   final_out.len(), expected_output.len())
+        }
+
+        let error = expected_output - final_out;
+
+        let input_delta_weights = self.learning_rate * () * final_out;
+    }
+}
+
+fn hadamard_prod(x: DVector<f64>, y: &DVector<f64>) -> DVector<f64> {
+    for i in 0..x.len() {
+        x.at[i] *= y.at[i]
+    }
+    x
 }
 
 #[test]
 fn test_feedforward_matrices_sizes() {
     let inputs = [1.0, 2.0, 3.0, -1.0];
     let perc = MultilayerPerceptron::new(
+        0.01, // learning rate
         inputs.len(), // number of inputs
-        &[ // hidden layers (number of neurons, activation function)
+        &[// hidden layers (number of neurons, activation function)
             (2, Tanh(1.0).into()),
             (3, Tanh(1.0).into()),
             (6, Tanh(1.0).into()),
             (2, Tanh(1.0).into())
         ],
-        (2, Tanh(1.0).into())
+        (2, Tanh(1.0).into()) // output layer (number of neurons, activation function)
     );
     let out = perc.feed_forward(&inputs);
-    assert!(out.len() == 2);
+    assert!(out.0.len() == 2);
 }
