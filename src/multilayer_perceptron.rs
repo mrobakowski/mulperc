@@ -69,23 +69,24 @@ impl MultilayerPerceptron {
     }
 
     fn feed_forward(&self, input: &[f64]) -> (DVector<f64>, Vec<DVector<f64>>) {
-        let layer_outputs = Vec::with_capacity(self.hidden_layers.len() + 2);
+        let mut hidden_layer_outputs = Vec::with_capacity(self.hidden_layers.len() + 2);
         let mut signal = make_dvector_with_bias(input);
-        layer_outputs.push(signal);
+        hidden_layer_outputs.push(signal.clone());
 
         for layer in &self.hidden_layers {
             signal = layer.activate(signal);
-            layer_outputs.push(signal);
+            hidden_layer_outputs.push(signal.clone());
         }
 
         let out = self.output_layer.activate(signal);
-        layer_outputs.push(out);
-        (out, layer_outputs)
+        (out, hidden_layer_outputs)
     }
 
     fn backpropagate(&mut self, input: &[f64], target: &[f64]) {
         let expected_output = DVector::from_slice(target.len(), target);
-        let (final_out, steps) = self.feed_forward(input);
+        let (final_out, mut steps) = self.feed_forward(input);
+        let num_steps = steps.len();
+
         if final_out.len() != expected_output.len() {
             panic!("expected_output has wrong length: expected: {}, given: {}",
                    final_out.len(), expected_output.len())
@@ -93,11 +94,35 @@ impl MultilayerPerceptron {
 
         let error = expected_output - final_out;
 
-        let input_delta_weights = self.learning_rate * () * final_out;
+        let output_layer_delta_weights = hadamard_prod(self.learning_rate * error, {
+            {
+                let z = &mut steps[num_steps - 1].at;
+                for x in z {
+                    *x = self.output_layer.activation_function.dereviative(*x)
+                }
+            }
+            &steps[num_steps - 1]
+        });
+
+        let mut delta_weights = Vec::with_capacity(self.hidden_layers.len() + 1);
+        delta_weights.push(output_layer_delta_weights);
+
+        for i in 0..self.hidden_layers.len() {
+            let layer_index = self.hidden_layers.len() - 1 - i; // we start at the last layer
+            let current_layer = &mut self.hidden_layers[layer_index];
+            let inputs_to_current_hidden_layer = &mut steps[num_steps - 2 - i];
+            {
+                let z = &mut inputs_to_current_hidden_layer.at;
+                for x in z {
+                    *x = current_layer.activation_function.dereviative(*x)
+                }
+            }
+
+        }
     }
 }
 
-fn hadamard_prod(x: DVector<f64>, y: &DVector<f64>) -> DVector<f64> {
+fn hadamard_prod(mut x: DVector<f64>, y: &DVector<f64>) -> DVector<f64> {
     for i in 0..x.len() {
         x.at[i] *= y.at[i]
     }
