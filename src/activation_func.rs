@@ -48,3 +48,72 @@ impl ActivationFunction for Linear {
         self.0
     }
 }
+
+#[derive(Debug, Copy, Clone)]
+pub struct Tanh(pub f64);
+
+impl Tanh {
+    fn new(a: f64) -> Tanh { Tanh(a) }
+}
+
+impl Default for Tanh {
+    fn default() -> Self {
+        Tanh::new(1.0)
+    }
+}
+
+impl ActivationFunction for Tanh {
+    fn function(&self, x: f64) -> f64 {
+        (x * self.0).tanh()
+    }
+
+    fn dereviative(&self, x: f64) -> f64 {
+        fn sech(x: f64) -> f64 { 1.0 / x.cosh() }
+        sech(x) * sech(x)
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum ActivationFunctionEnum {
+    Sigmoid(Sigmoid),
+    Linear(Linear),
+    Tanh(Tanh)
+}
+
+impl ActivationFunction for ActivationFunctionEnum {
+    fn function(&self, x: f64) -> f64 {
+        use self::ActivationFunctionEnum::*;
+        match self {
+            &Sigmoid(f) => f.function(x),
+            &Linear(f) => f.function(x),
+            &Tanh(f) => f.function(x)
+        }
+    }
+
+    fn dereviative(&self, x: f64) -> f64 {
+        use self::ActivationFunctionEnum::*;
+        match self {
+            &Sigmoid(f) => f.dereviative(x),
+            &Linear(f) => f.dereviative(x),
+            &Tanh(f) => f.dereviative(x)
+        }
+    }
+}
+
+impl From<Sigmoid> for ActivationFunctionEnum {
+    fn from(s: Sigmoid) -> Self {
+        ActivationFunctionEnum::Sigmoid(s)
+    }
+}
+
+impl From<Linear> for ActivationFunctionEnum {
+    fn from(l: Linear) -> Self {
+        ActivationFunctionEnum::Linear(l)
+    }
+}
+
+impl From<Tanh> for ActivationFunctionEnum {
+    fn from(t: Tanh) -> Self {
+        ActivationFunctionEnum::Tanh(t)
+    }
+}

@@ -8,5 +8,4 @@ mod activation_func;
 
 fn main() {
     println!("Hello, world!");
-
 }
