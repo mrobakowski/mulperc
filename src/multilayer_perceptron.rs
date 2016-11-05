@@ -1,6 +1,6 @@
 use rand;
 use activation_func::{ActivationFunction, Tanh, ActivationFunctionEnum};
-use na::{DMatrix, DVector};
+use na::{DMatrix, DVector, Transpose, Iterable};
 
 fn make_dvector_with_bias(x: &[f64]) -> DVector<f64> {
     let mut i = DVector::from_slice(x.len(), x);
@@ -94,30 +94,29 @@ impl MultilayerPerceptron {
 
         let error = expected_output - final_out;
 
-        let output_layer_delta_weights = hadamard_prod(self.learning_rate * error, {
-            {
-                let z = &mut steps[num_steps - 1].at;
-                for x in z {
-                    *x = self.output_layer.activation_function.dereviative(*x)
-                }
-            }
-            &steps[num_steps - 1]
-        });
+        let output_layer_delta = hadamard_prod(
+            error,
+            &steps[num_steps - 1].iter()
+                .map(|&x| self.output_layer.activation_function.dereviative(x)).collect()
+        );
 
-        let mut delta_weights = Vec::with_capacity(self.hidden_layers.len() + 1);
-        delta_weights.push(output_layer_delta_weights);
+        let mut deltas = Vec::with_capacity(self.hidden_layers.len() + 1);
+        deltas.push(output_layer_delta);
 
         for i in 0..self.hidden_layers.len() {
             let layer_index = self.hidden_layers.len() - 1 - i; // we start at the last layer
-            let current_layer = &mut self.hidden_layers[layer_index];
-            let inputs_to_current_hidden_layer = &mut steps[num_steps - 2 - i];
-            {
-                let z = &mut inputs_to_current_hidden_layer.at;
-                for x in z {
-                    *x = current_layer.activation_function.dereviative(*x)
-                }
-            }
+            let current_layer: &Layer = &self.hidden_layers[layer_index];
+            let inputs_to_current_hidden_layer = &steps[num_steps - 2 - i];
+            let outputs_from_current_hidden_layer = &steps[num_steps - 1 - i];
+            let f_prim_z: DVector<_> = inputs_to_current_hidden_layer.iter()
+                .map(|&x| current_layer.activation_function.dereviative(x)).collect();
 
+            let delta = hadamard_prod(
+                current_layer.neurons.transpose() * &deltas[i],
+                &f_prim_z
+            );
+
+            deltas.push(delta);
         }
     }
 }
