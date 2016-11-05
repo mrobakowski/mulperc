@@ -1,6 +1,6 @@
 use rand;
 use activation_func::{ActivationFunction, Tanh, ActivationFunctionEnum};
-use na::{DMatrix, DVector, Transpose, Iterable};
+use na::{DMatrix, DVector, Transpose, Iterable, Outer, Shape};
 
 fn make_dvector_with_bias(x: &[f64]) -> DVector<f64> {
     let mut i = DVector::from_slice(x.len(), x);
@@ -22,9 +22,8 @@ impl Layer {
         }
     }
 
-    fn activate(&self, inputs: DVector<f64>) -> DVector<f64> {
-        let mut res = inputs;
-        res *= &self.neurons;
+    fn activate(&self, inputs: &DVector<f64>) -> DVector<f64> {
+        let mut res = inputs * &self.neurons;
         for i in 0..res.len() {
             res[i] = self.activation_function.function(res[i]);
         }
@@ -33,8 +32,7 @@ impl Layer {
 }
 
 pub struct MultilayerPerceptron {
-    hidden_layers: Vec<Layer>,
-    output_layer: Layer,
+    layers: Vec<Layer>,
     learning_rate: f64
 }
 
@@ -42,47 +40,40 @@ impl MultilayerPerceptron {
     fn new(
         learning_rate: f64,
         inputs: usize,
-        hidden_layers: &[(usize, ActivationFunctionEnum)],
-        outputs: (usize, ActivationFunctionEnum)
+        layers: &[(usize, ActivationFunctionEnum)]
     ) -> MultilayerPerceptron {
-        let mut hidden = Vec::with_capacity(hidden_layers.len());
+        let mut l = Vec::with_capacity(layers.len());
         let mut prev_layer_size = inputs + 1;
 
-        for i in 0..hidden_layers.len() {
-            hidden.push(Layer::new(
-                hidden_layers[i].1,
-                DMatrix::from_fn(prev_layer_size, hidden_layers[i].0, |_, _| rand::random()))
+        for i in 0..layers.len() {
+            l.push(Layer::new(
+                layers[i].1,
+                DMatrix::from_fn(prev_layer_size, layers[i].0, |_, _| rand::random()))
             );
-            prev_layer_size = hidden_layers[i].0;
+            prev_layer_size = layers[i].0;
         }
 
-        let output = Layer::new(
-            outputs.1,
-            DMatrix::from_fn(prev_layer_size, outputs.0, |_, _| rand::random())
-        );
-
         MultilayerPerceptron {
-            hidden_layers: hidden,
-            output_layer: output,
+            layers: l,
             learning_rate: learning_rate
         }
     }
 
     fn feed_forward(&self, input: &[f64]) -> (DVector<f64>, Vec<DVector<f64>>) {
-        let mut hidden_layer_outputs = Vec::with_capacity(self.hidden_layers.len() + 2);
+        let mut layer_inputs = Vec::with_capacity(self.layers.len() + 1);
         let mut signal = make_dvector_with_bias(input);
-        hidden_layer_outputs.push(signal.clone());
 
-        for layer in &self.hidden_layers {
-            signal = layer.activate(signal);
-            hidden_layer_outputs.push(signal.clone());
+        for layer in &self.layers {
+            let new_signal = layer.activate(&signal);
+            layer_inputs.push(signal);
+            signal = new_signal;
         }
 
-        let out = self.output_layer.activate(signal);
-        (out, hidden_layer_outputs)
+            (signal, layer_inputs)
     }
 
-    fn backpropagate(&mut self, input: &[f64], target: &[f64]) {
+    /// Returns delta weights
+    fn backpropagate(&self, input: &[f64], target: &[f64]) -> Vec<DMatrix<f64>> {
         let expected_output = DVector::from_slice(target.len(), target);
         let (final_out, mut steps) = self.feed_forward(input);
         let num_steps = steps.len();
@@ -92,41 +83,46 @@ impl MultilayerPerceptron {
                    final_out.len(), expected_output.len())
         }
 
-        let error = expected_output - final_out;
+        let last_layer = &self.layers[self.layers.len() - 1];
 
-        let output_layer_delta = hadamard_prod(
-            error,
-            &steps[num_steps - 1].iter()
-                .map(|&x| self.output_layer.activation_function.dereviative(x)).collect()
-        );
+        let f_prim_z: DVector<_> = final_out.iter()
+            .map(|&x| last_layer.activation_function.dereviative(x)).collect();
 
-        let mut deltas = Vec::with_capacity(self.hidden_layers.len() + 1);
+        let error = final_out - expected_output;
+        let output_layer_delta = error * f_prim_z;
+
+        println!("after error calc");
+
+        let mut deltas = Vec::with_capacity(self.layers.len() + 1);
         deltas.push(output_layer_delta);
 
-        for i in 0..self.hidden_layers.len() {
-            let layer_index = self.hidden_layers.len() - 1 - i; // we start at the last layer
-            let current_layer: &Layer = &self.hidden_layers[layer_index];
-            let inputs_to_current_hidden_layer = &steps[num_steps - 2 - i];
+        for i in 0..self.layers.len() {
+            let layer_index = self.layers.len() - 1 - i; // we start at the last layer
+            let current_layer: &Layer = &self.layers[layer_index];
             let outputs_from_current_hidden_layer = &steps[num_steps - 1 - i];
-            let f_prim_z: DVector<_> = inputs_to_current_hidden_layer.iter()
+
+            let f_prim_z: DVector<_> = outputs_from_current_hidden_layer.iter()
                 .map(|&x| current_layer.activation_function.dereviative(x)).collect();
+            println!("after f_prim_z");
 
-            let delta = hadamard_prod(
-                current_layer.neurons.transpose() * &deltas[i],
-                &f_prim_z
-            );
-
+            let neurons_transposed = current_layer.neurons.transpose();
+            println!("neurons transposed: {:?}", neurons_transposed.shape());
+            let delta = {
+                let prev_delta = &deltas[i];
+                println!("prev delta: {:?}", prev_delta.shape());
+                let d1 = prev_delta * neurons_transposed;
+                println!("d1 size: {:?}, f_prim_z size: {:?}", d1.shape(), f_prim_z.shape());
+                d1 * f_prim_z
+            };
+            println!("after delta");
             deltas.push(delta);
         }
+
+        deltas.into_iter().zip(steps.iter().rev())
+            .map(|(d, s)| d.outer(s)).collect()
     }
 }
 
-fn hadamard_prod(mut x: DVector<f64>, y: &DVector<f64>) -> DVector<f64> {
-    for i in 0..x.len() {
-        x.at[i] *= y.at[i]
-    }
-    x
-}
 
 #[test]
 fn test_feedforward_matrices_sizes() {
@@ -138,10 +134,28 @@ fn test_feedforward_matrices_sizes() {
             (2, Tanh(1.0).into()),
             (3, Tanh(1.0).into()),
             (6, Tanh(1.0).into()),
-            (2, Tanh(1.0).into())
-        ],
-        (2, Tanh(1.0).into()) // output layer (number of neurons, activation function)
+            (5, Tanh(1.0).into()),
+            (2, Tanh(1.0).into()) // output layer (number of neurons, activation function)
+        ]
     );
     let out = perc.feed_forward(&inputs);
     assert!(out.0.len() == 2);
+}
+
+#[test]
+fn test_backpropagation_matrices_sizes() {
+    let inputs = [1.0, 2.0, 3.0, -1.0];
+    let perc = MultilayerPerceptron::new(
+        0.01,
+        inputs.len(),
+        &[
+            (2, Tanh(1.0).into()),
+            (3, Tanh(1.0).into()),
+            (6, Tanh(1.0).into()),
+            (5, Tanh(1.0).into()),
+            (2, Tanh(1.0).into())
+        ]
+    );
+    let deltas = perc.backpropagate(&inputs, &[1.0, 0.0]);
+    println!("{:?}", deltas);
 }
