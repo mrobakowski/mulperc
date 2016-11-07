@@ -4,6 +4,6 @@ version = "0.1.0"
 authors = ["mrobakowski <mrobakowski@networkedassets.org>"]
 
 [dependencies]
-rayon = "0.4.3"
+rayon = "0.5.0"
 rand = "0.3"
 nalgebra = "0.10.1"

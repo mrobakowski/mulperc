@@ -1,6 +1,6 @@
 pub trait ActivationFunction: Send + Sync + Copy {
     fn function(&self, x: f64) -> f64;
-    fn dereviative(&self, x: f64) -> f64;
+    fn derivative(&self, x: f64) -> f64;
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -21,7 +21,7 @@ impl ActivationFunction for Sigmoid {
         1.0 / (1.0 + (-x * self.0).exp())
     }
 
-    fn dereviative(&self, x: f64) -> f64 {
+    fn derivative(&self, x: f64) -> f64 {
         self.function(x) * (1.0 - self.function(x))
     }
 }
@@ -44,7 +44,7 @@ impl ActivationFunction for Linear {
         self.0 * x
     }
 
-    fn dereviative(&self, _x: f64) -> f64 {
+    fn derivative(&self, _x: f64) -> f64 {
         self.0
     }
 }
@@ -67,7 +67,7 @@ impl ActivationFunction for Tanh {
         (x * self.0).tanh()
     }
 
-    fn dereviative(&self, x: f64) -> f64 {
+    fn derivative(&self, x: f64) -> f64 {
         fn sech(x: f64) -> f64 { 1.0 / x.cosh() }
         sech(x) * sech(x)
     }
@@ -90,12 +90,12 @@ impl ActivationFunction for ActivationFunctionEnum {
         }
     }
 
-    fn dereviative(&self, x: f64) -> f64 {
+    fn derivative(&self, x: f64) -> f64 {
         use self::ActivationFunctionEnum::*;
         match self {
-            &Sigmoid(f) => f.dereviative(x),
-            &Linear(f) => f.dereviative(x),
-            &Tanh(f) => f.dereviative(x)
+            &Sigmoid(f) => f.derivative(x),
+            &Linear(f) => f.derivative(x),
+            &Tanh(f) => f.derivative(x)
         }
     }
 }
