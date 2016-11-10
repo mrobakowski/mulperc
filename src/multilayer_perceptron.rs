@@ -1,6 +1,6 @@
 use rand;
 use activation_func::{ActivationFunction, Tanh, ActivationFunctionEnum};
-use na::{DMatrix, DVector, Transpose, Outer, IterableMut};
+use na::{DMatrix, DVector, Transpose, Outer, IterableMut, Norm};
 use std::ops::Deref;
 use rayon::prelude::*;
 
@@ -51,10 +51,15 @@ impl MultilayerPerceptron {
         let mut l = Vec::with_capacity(layers.len());
         let mut prev_layer_size = inputs + 1;
 
+        use rand::distributions::Normal;
+        use rand::distributions::IndependentSample;
+        let normal = Normal::new(0.0, 0.1);
+
         for i in 0..layers.len() {
             l.push(Layer::new(
                 layers[i].1,
-                DMatrix::from_fn(prev_layer_size, layers[i].0, |_, _| rand::random()))
+                DMatrix::from_fn(prev_layer_size, layers[i].0,
+                                 |_, _| normal.ind_sample(&mut rand::thread_rng())))
             );
             prev_layer_size = layers[i].0;
         }
@@ -75,7 +80,7 @@ impl MultilayerPerceptron {
             signal = new_signal;
         }
 
-            (signal, layer_inputs)
+        (signal, layer_inputs)
     }
 
     /// Returns delta weights
@@ -120,7 +125,7 @@ impl MultilayerPerceptron {
         assert!(deltas.len() == steps.len());
 
         deltas.into_iter().rev().zip(steps.iter())
-            .map(|(d, s)| d.outer(s)).collect()
+            .map(|(d, s)| self.learning_rate * s.outer(&d)).collect()
     }
 
     fn learn_batch<I, T>(&mut self, batch: &[(I, T)])
@@ -143,7 +148,7 @@ impl MultilayerPerceptron {
         }
 
         for (l, d) in self.layers.iter_mut().zip(batch_delta.iter()) {
-            l.weights += d
+            l.weights -= d
         }
     }
 }
@@ -180,4 +185,70 @@ fn test_backpropagation_matrices_sizes() {
     );
     let deltas = perc.backpropagate(&inputs, &[0.0, 1.0]);
     println!("{:?}", deltas.len());
+}
+
+use img;
+
+#[test]
+fn test_learn_batch() {
+    let zero = (img::get_pixels("res/Sieci Neuronowe/0_158975_1.png"), &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0][..]);
+    let one = (img::get_pixels("res/Sieci Neuronowe/1_158975_1.png"), &[0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0][..]);
+    let two = (img::get_pixels("res/Sieci Neuronowe/2_203255_0.png"), &[0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0][..]);
+    let three = (img::get_pixels("res/Sieci Neuronowe/3_203119_1.png"), &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0][..]);
+    let four = (img::get_pixels("res/Sieci Neuronowe/4_203277_0.png"), &[0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0][..]);
+    let five = (img::get_pixels("res/Sieci Neuronowe/5_203277_1.png"), &[0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0][..]);
+    let six = (img::get_pixels("res/Sieci Neuronowe/6_203255_2.png"), &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0][..]);
+    let seven = (img::get_pixels("res/Sieci Neuronowe/7_203255_2.png"), &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0][..]);
+    let eight = (img::get_pixels("res/Sieci Neuronowe/8_158975_1.png"), &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0][..]);
+    let nine = (img::get_pixels("res/Sieci Neuronowe/9_203303_2.png"), &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0][..]);
+
+    let num_pixels = one.0.len();
+    println!("#pixels: {}", num_pixels);
+
+    let numbers: Vec<(Vec<f64>, &[f64])> = vec![zero, one, two, three, four, five, six, seven, eight, nine];
+
+    let mut perc = MultilayerPerceptron::new(
+        0.1,
+        num_pixels,
+        &[
+            (100, Tanh(1.0).into()),
+            (10, Tanh(1.0).into())
+        ]
+    );
+
+    use na::Iterable;
+    let mut err = 0.0;
+    for &(ref num, truth) in &numbers {
+        let out = perc.feed_forward(num).0;
+
+        println!("{}", out.iter().enumerate()
+            .max_by(|a, b|
+                a.1.partial_cmp(b.1).unwrap()
+            ).unwrap().0);
+        err += (out - DVector::from_slice(10, truth)).norm().powi(2);
+    }
+
+    println!("err before: {}", err);
+
+    perc.learn_batch(&numbers);
+    perc.learn_batch(&numbers);
+    perc.learn_batch(&numbers);
+    perc.learn_batch(&numbers);
+    perc.learn_batch(&numbers);
+    perc.learn_batch(&numbers);
+    perc.learn_batch(&numbers);
+    perc.learn_batch(&numbers);
+    perc.learn_batch(&numbers);
+
+    let mut err = 0.0;
+    for &(ref num, truth) in &numbers {
+        let out = perc.feed_forward(num).0;
+        println!("{}", out.iter().enumerate()
+            .max_by(|a, b|
+                a.1.partial_cmp(b.1).unwrap()
+            ).unwrap().0);
+        err += (out - DVector::from_slice(10, truth)).norm().powi(2);
+    }
+
+    println!("err after: {}", err);
 }
