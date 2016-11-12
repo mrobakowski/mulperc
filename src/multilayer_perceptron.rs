@@ -43,7 +43,7 @@ pub struct MultilayerPerceptron {
 }
 
 impl MultilayerPerceptron {
-    fn new(
+    pub fn new(
         learning_rate: f64,
         inputs: usize,
         layers: &[(usize, ActivationFunctionEnum)]
@@ -70,7 +70,7 @@ impl MultilayerPerceptron {
         }
     }
 
-    fn feed_forward(&self, input: &[f64]) -> (DVector<f64>, Vec<DVector<f64>>) {
+    pub fn feed_forward(&self, input: &[f64]) -> (DVector<f64>, Vec<DVector<f64>>) {
         let mut layer_inputs = Vec::with_capacity(self.layers.len() + 1);
         let mut signal = make_dvector_with_bias(input);
 
@@ -84,7 +84,7 @@ impl MultilayerPerceptron {
     }
 
     /// Returns delta weights
-    fn backpropagate(&self, input: &[f64], target: &[f64]) -> Vec<DMatrix<f64>> {
+    pub fn backpropagate(&self, input: &[f64], target: &[f64]) -> Vec<DMatrix<f64>> {
         let expected_output = DVector::from_slice(target.len(), target);
         let (final_out, steps) = self.feed_forward(input);
         let num_steps = steps.len();
@@ -128,7 +128,7 @@ impl MultilayerPerceptron {
             .map(|(d, s)| self.learning_rate * s.outer(&d)).collect()
     }
 
-    fn learn_batch<I, T>(&mut self, batch: &[(I, T)])
+    pub fn learn_batch<I, T>(&mut self, batch: &[(I, T)])
         where I: Deref<Target = [f64]> + Sync, T: Deref<Target = [f64]> + Sync {
         let mut batch_delta = batch.par_iter()
             .map(|&(ref i, ref t)| Some(self.backpropagate(i.deref(), t.deref())))
