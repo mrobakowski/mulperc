@@ -45,5 +45,8 @@ pub fn get() -> ArgMatches<'static> {
             .takes_value(true)
             .default_value("0.1")
             .validator(str_is_float))
+        .arg(Arg::with_name("no-parallel")
+            .long("no-parallel")
+            .help("Runs learning on single thread instead of all the available threads."))
         .get_matches()
 }

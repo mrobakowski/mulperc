@@ -24,6 +24,7 @@ fn main() {
     let sample: f64 = matches.value_of("learn-sample").unwrap().parse().unwrap();
     let max_epochs: u64 = matches.value_of("max-epochs").unwrap().parse().unwrap();
     let learning_rate: f64 = matches.value_of("learning-rate").unwrap().parse().unwrap();
+    let parallel = matches.value_of("no-parallel").is_none();
 
     use std::fs;
     let paths = fs::read_dir(learn_dir).unwrap();
@@ -79,14 +80,26 @@ fn main() {
 
     use pbr::ProgressBar;
     let mut pb = ProgressBar::new(max_epochs);
-    for i in 0..max_epochs {
-        let sample: Vec<(&[f64], &[f64])> = rand::sample(
-            &mut rand::thread_rng(),
-            imgs.iter().map(|&(ref image, ref label)| (&image[..], &label_to_neuron[label.as_str()].1[..])),
-            sample_amt
-        );
-        perc.learn_batch(&sample);
-        pb.inc();
+    if parallel {
+        for i in 0..max_epochs {
+            let sample: Vec<(&[f64], &[f64])> = rand::sample(
+                &mut rand::thread_rng(),
+                imgs.iter().map(|&(ref image, ref label)| (&image[..], &label_to_neuron[label.as_str()].1[..])),
+                sample_amt
+            );
+            perc.learn_batch(&sample);
+            pb.inc();
+        }
+    } else {
+        for i in 0..max_epochs {
+            let sample: Vec<(&[f64], &[f64])> = rand::sample(
+                &mut rand::thread_rng(),
+                imgs.iter().map(|&(ref image, ref label)| (&image[..], &label_to_neuron[label.as_str()].1[..])),
+                sample_amt
+            );
+            perc.learn_batch_no_parallel(&sample);
+            pb.inc();
+        }
     }
     pb.finish_println("Finished learning!\n");
 

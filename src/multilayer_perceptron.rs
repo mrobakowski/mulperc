@@ -132,7 +132,32 @@ impl MultilayerPerceptron {
         where I: Deref<Target = [f64]> + Sync, T: Deref<Target = [f64]> + Sync {
         let mut batch_delta = batch.par_iter()
             .map(|&(ref i, ref t)| Some(self.backpropagate(i.deref(), t.deref())))
+            .weight_max()
             .reduce(|| None, |acc, v_opt| {
+                acc.and_then(|mut old_v: Vec<DMatrix<f64>>| {
+                    v_opt.as_ref().map(|v| {
+                        for (i, x) in old_v.iter_mut().enumerate() { *x += &v[i] }
+                        old_v
+                    })
+                }).or(v_opt)
+            }).unwrap();
+
+        for x in &mut batch_delta {
+            for el in x.as_mut_vector() {
+                *el /= batch.len() as f64
+            }
+        }
+
+        for (l, d) in self.layers.iter_mut().zip(batch_delta.iter()) {
+            l.weights -= d
+        }
+    }
+
+    pub fn learn_batch_no_parallel<I, T>(&mut self, batch: &[(I, T)])
+        where I: Deref<Target = [f64]> + Sync, T: Deref<Target = [f64]> + Sync {
+        let mut batch_delta = batch.iter()
+            .map(|&(ref i, ref t)| Some(self.backpropagate(i.deref(), t.deref())))
+            .fold(None, |acc, v_opt| {
                 acc.and_then(|mut old_v: Vec<DMatrix<f64>>| {
                     v_opt.as_ref().map(|v| {
                         for (i, x) in old_v.iter_mut().enumerate() { *x += &v[i] }
