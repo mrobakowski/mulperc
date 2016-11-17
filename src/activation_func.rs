@@ -3,7 +3,7 @@ pub trait ActivationFunction: Send + Sync + Copy {
     fn derivative(&self, x: f64) -> f64;
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
 pub struct Sigmoid(pub f64);
 
 impl Sigmoid {
@@ -26,7 +26,7 @@ impl ActivationFunction for Sigmoid {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
 pub struct Linear(pub f64);
 
 impl Linear {
@@ -49,7 +49,7 @@ impl ActivationFunction for Linear {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
 pub struct Tanh(pub f64);
 
 impl Tanh {
@@ -73,7 +73,7 @@ impl ActivationFunction for Tanh {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
 pub enum ActivationFunctionEnum {
     Sigmoid(Sigmoid),
     Linear(Linear),

@@ -1,8 +1,11 @@
 use rand;
 use activation_func::{ActivationFunction, Tanh, ActivationFunctionEnum};
-use na::{DMatrix, DVector, Transpose, Outer, IterableMut, Norm};
+use na::{DMatrix, DVector, Transpose, Outer, IterableMut, Norm, Shape};
 use std::ops::Deref;
 use rayon::prelude::*;
+use serde::ser::{Serialize, Serializer};
+use serde::de::{Deserialize, Deserializer};
+use bincode;
 
 fn make_dvector_with_bias(x: &[f64]) -> DVector<f64> {
     let mut i = DVector::from_slice(x.len(), x);
@@ -10,10 +13,32 @@ fn make_dvector_with_bias(x: &[f64]) -> DVector<f64> {
     i
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Layer {
     weights: DMatrix<f64>,
     activation_function: ActivationFunctionEnum
+}
+
+// the implementations below don't produce valid jsons
+
+impl Serialize for Layer {
+    fn serialize<S>(&self, serializer: &mut S) -> Result<(), S::Error> where S: Serializer {
+        self.weights.shape().serialize(serializer)?;
+        self.weights.as_vector().serialize(serializer)?;
+        self.activation_function.serialize(serializer)
+    }
+}
+
+impl Deserialize for Layer {
+    fn deserialize<D>(deserializer: &mut D) -> Result<Self, D::Error> where D: Deserializer {
+        let shape = <(usize, usize) as Deserialize>::deserialize(deserializer)?;
+        let weights = <Vec<f64> as Deserialize>::deserialize(deserializer)?;
+        let activation_func = <ActivationFunctionEnum as Deserialize>::deserialize(deserializer)?;
+        Ok(Layer {
+            weights: DMatrix::from_column_vector(shape.0, shape.1, &weights),
+            activation_function: activation_func
+        })
+    }
 }
 
 impl Layer {
@@ -37,9 +62,29 @@ impl Layer {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct MultilayerPerceptron {
     layers: Vec<Layer>,
     learning_rate: f64
+}
+
+#[test]
+fn test_serialization() {
+    let x = MultilayerPerceptron::new(
+        0.01,
+        10,
+        &[
+            (4, Tanh(1.0).into()),
+            (3, Tanh(1.0).into()),
+            (2, Tanh(1.0).into())
+        ]
+    );
+
+    println!("{:?}", x);
+
+    let ser = bincode::serde::serialize(&x, bincode::SizeLimit::Infinite).unwrap();
+    let de = bincode::serde::deserialize(&ser).unwrap();
+    assert!(x == de);
 }
 
 impl MultilayerPerceptron {
@@ -80,7 +125,7 @@ impl MultilayerPerceptron {
             signal = new_signal;
         }
 
-        (signal, layer_inputs)
+            (signal, layer_inputs)
     }
 
     /// Returns delta weights
