@@ -181,35 +181,14 @@ struct NetFile(MultilayerPerceptron, HashMap<usize, String>);
 fn tests_for_raport() {
     let dir = "res/Sieci Neuronowe";
 
-    println!("lr = 0.1");
-    raport(dir, dir, 0.2, 1000, 0.1, 10);
+    for hidden in 2..121 {
+        print!("{} ", hidden);
+        raport(dir, dir, 0.2, 50, 0.5, 10, hidden);
+    }
 
-    println!("lr = 0.2");
-    raport(dir, dir, 0.2, 1000, 0.2, 10);
-
-    println!("lr = 0.3");
-    raport(dir, dir, 0.2, 1000, 0.3, 10);
-
-    println!("lr = 0.4");
-    raport(dir, dir, 0.2, 1000, 0.4, 10);
-
-    println!("lr = 0.5");
-    raport(dir, dir, 0.2, 1000, 0.5, 10);
-
-    println!("lr = 0.6");
-    raport(dir, dir, 0.2, 1000, 0.6, 10);
-
-    println!("lr = 0.7");
-    raport(dir, dir, 0.2, 1000, 0.7, 10);
-
-    println!("lr = 0.8");
-    raport(dir, dir, 0.2, 1000, 0.8, 10);
-
-    println!("lr = 0.9");
-    raport(dir, dir, 0.2, 1000, 0.9, 10);
 }
 
-fn raport(learn_dir: &str, check_dir: &str, sample: f64, max_epochs: usize, learning_rate: f64, skip: usize) {
+fn raport(learn_dir: &str, check_dir: &str, sample: f64, max_epochs: usize, learning_rate: f64, skip: usize, hidden: usize) {
     let check_imgs_vec;
 
     //    let learn_dir = "res/Sieci Neuronowe";
@@ -253,7 +232,7 @@ fn raport(learn_dir: &str, check_dir: &str, sample: f64, max_epochs: usize, lear
         learning_rate,
         imgs[0].0.len(),
         &[
-            (100, Tanh(1.0).into()), // TODO: make that configurable
+            (hidden, Tanh(1.0).into()), // TODO: make that configurable
             (learning_labels.len(), Tanh(1.0).into())
         ]
     );
@@ -281,8 +260,8 @@ fn raport(learn_dir: &str, check_dir: &str, sample: f64, max_epochs: usize, lear
         );
         perc.learn_batch(&sample);
         if i % skip == 0 {
-            print!("{}\t", i);
-            println_correct(&check_imgs, &perc, &neuron_to_label);
+//            print!("{}\t", i);
+//            println_correct(&check_imgs, &perc, &neuron_to_label);
         }
 
         //        pb.inc();
@@ -290,7 +269,7 @@ fn raport(learn_dir: &str, check_dir: &str, sample: f64, max_epochs: usize, lear
 
     //    pb.finish_println("Finished learning!\n");
 
-    //    println_correct(&check_imgs, &perc, &neuron_to_label);
+        println_correct(&check_imgs, &perc, &neuron_to_label);
 }
 
 fn println_correct(check_imgs: &[(Vec<f64>, String)], perc: &MultilayerPerceptron, neuron_to_label: &HashMap<usize, &str>) {
@@ -308,4 +287,36 @@ fn println_correct(check_imgs: &[(Vec<f64>, String)], perc: &MultilayerPerceptro
     }
 
     println!("{}", correct);
+}
+
+#[test] fn and_test() {
+    use activation_func::Tanh;
+    let mut perc = MultilayerPerceptron::new(
+        0.5,
+        2,
+        &[
+            (2, Tanh(1.0).into()), // TODO: make that configurable
+            (1, Tanh(1.0).into())
+        ]
+    );
+
+    let examples = [
+        (&[1.0, 1.0][..], &[1.0][..]),
+        (&[1.0, 0.0][..], &[0.0][..]),
+        (&[0.0, 1.0][..], &[1.0][..]),
+        (&[0.0, 0.0][..], &[0.0][..]),
+    ];
+
+    for _ in 0..1000 {
+        perc.learn_batch(&examples);
+    }
+
+    let mut err = 0.0;
+    use na::Iterable;
+    for &(ref example, ref target) in &examples {
+        let (out, _) = perc.feed_forward(example);
+        err += (out[0] - target[0]).abs();
+    }
+
+    println!("{}", err);
 }
