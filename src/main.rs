@@ -75,7 +75,8 @@ fn learn(matches: &clap::ArgMatches<'static>) {
     let sample: f64 = matches.value_of("learn-sample").unwrap().parse().unwrap();
     let max_epochs: u64 = matches.value_of("max-epochs").unwrap().parse().unwrap();
     let learning_rate: f64 = matches.value_of("learning-rate").unwrap().parse().unwrap();
-    let parallel = matches.value_of("no-parallel").is_none();
+    let parallel = !matches.is_present("no-parallel");
+    println!("parallel: {}", parallel);
     let input_net = matches.value_of("in-net");
     let out_net = matches.value_of("out-net");
 
