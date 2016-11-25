@@ -4,22 +4,28 @@
 extern crate rand;
 extern crate rayon;
 extern crate nalgebra as na;
-extern crate image;
 extern crate clap;
 extern crate pbr;
+extern crate nfd;
 
 #[macro_use] extern crate serde_derive;
 extern crate serde;
 extern crate bincode;
+
+#[macro_use] extern crate conrod;
+extern crate image;
+extern crate find_folder;
 
 mod multilayer_perceptron;
 mod activation_func;
 mod img;
 mod validators;
 mod args;
+mod window;
+mod window_gui;
 
 use std::collections::HashMap;
-use multilayer_perceptron::MultilayerPerceptron;
+use multilayer_perceptron::{MultilayerPerceptron, NetFile};
 use std::fs::File;
 
 fn main() {
@@ -29,6 +35,9 @@ fn main() {
     }
     if let Some(matches) = matches.subcommand_matches("check") {
         check(matches);
+    }
+    if let Some(matches) = matches.subcommand_matches("conrod") {
+        window::window_loop();
     }
 }
 
@@ -41,7 +50,6 @@ fn get_img_and_label<P: AsRef<std::path::Path>>(p: P) -> (Vec<f64>, String) {
 fn check(matches: &clap::ArgMatches<'static>) {
     let check_dir = matches.value_of("check-dataset").unwrap();
     let in_net = matches.value_of("in-net").unwrap();
-
 
     let NetFile(perc, neuron_to_label) = bincode::serde::deserialize_from(
         &mut File::open(in_net).expect("couldn't open input net"), bincode::SizeLimit::Infinite
@@ -174,9 +182,6 @@ fn learn(matches: &clap::ArgMatches<'static>) {
         ).expect("couldn't save the net");
     }
 }
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct NetFile(MultilayerPerceptron, HashMap<usize, String>);
 
 #[test]
 fn tests_for_raport() {

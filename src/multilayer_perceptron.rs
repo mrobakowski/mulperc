@@ -2,6 +2,7 @@ use rand;
 use activation_func::{ActivationFunction, Tanh, ActivationFunctionEnum};
 use na::{DMatrix, DVector, Transpose, Outer, IterableMut, Norm, Shape};
 use std::ops::Deref;
+use std::collections::HashMap;
 use rayon::prelude::*;
 use serde::ser::{Serialize, Serializer};
 use serde::de::{Deserialize, Deserializer};
@@ -67,6 +68,10 @@ pub struct MultilayerPerceptron {
     layers: Vec<Layer>,
     learning_rate: f64
 }
+
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct NetFile(pub MultilayerPerceptron, pub HashMap<usize, String>);
 
 #[test]
 fn test_serialization() {

@@ -7,6 +7,7 @@ pub fn get() -> ArgMatches<'static> {
         .author("Mikołaj Robakowski <mikolaj.rob@gmail.com>")
         .about("Classifies images using multilayer perceptron.\n\
                 Written for Neural Networks classes at Wrocław University of technology")
+        .subcommand(SubCommand::with_name("conrod"))
         .subcommand(SubCommand::with_name("learn")
             .about("Learns the net")
             .arg(Arg::with_name("out-net")
