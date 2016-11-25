@@ -11,7 +11,6 @@ const WIN_W: u32 = window_gui::WIN_W;
 const WIN_H: u32 = window_gui::WIN_H;
 
 pub fn window_loop() {
-
     // Build the window.
     let display = glium::glutin::WindowBuilder::new()
         .with_vsync()
@@ -66,10 +65,8 @@ pub fn window_loop() {
     // - Poll the window for available events.
     // - Repeat.
     'main: loop {
-
         // Poll for events.
         for event in display.poll_events() {
-
             // Use the `glutin` backend feature to convert the glutin event to a conrod one.
             let window = display.get_window().unwrap();
             if let Some(event) = conrod::backend::glutin::convert(event.clone(), window) {
@@ -77,6 +74,18 @@ pub fn window_loop() {
             }
 
             match event {
+                glium::glutin::Event::DroppedFile(path) => {
+                    let path = path.to_string_lossy();
+
+                    if path != old_path && path != "" {
+                        use img;
+                        app.image_path = path.into();
+                        old_path = app.image_path.clone();
+                        app.image = Some(img::get_pixels(&old_path));
+                        image_map = window_gui::image_map(&ids, load_image(&display, &old_path));
+                    }
+                }
+
                 // Break from the loop upon `Escape`.
                 glium::glutin::Event::KeyboardInput(_, _, Some(glium::glutin::VirtualKeyCode::Escape)) |
                 glium::glutin::Event::Closed =>
