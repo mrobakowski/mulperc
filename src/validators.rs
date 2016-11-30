@@ -1,5 +1,6 @@
 pub fn path_exists(s: String) -> Result<(), String> {
     use std::path::*;
+    if s == "mnist" { return Ok(())}
     let meta = Path::new(&s).metadata().map_err(|e| e.to_string())?;
     if meta.is_dir() {
         Ok(())

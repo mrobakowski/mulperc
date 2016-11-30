@@ -1,5 +1,6 @@
 #![feature(iter_max_by)]
 #![feature(proc_macro)]
+#![feature(conservative_impl_trait)]
 
 extern crate rand;
 extern crate rayon;
@@ -23,9 +24,13 @@ mod validators;
 mod args;
 mod window;
 mod window_gui;
+mod mnist;
+mod gzip;
 
 use std::collections::HashMap;
-use multilayer_perceptron::{MultilayerPerceptron, NetFile};
+use multilayer_perceptron::NetFile;
+#[cfg(test)]
+use multilayer_perceptron::MultilayerPerceptron;
 use std::fs::File;
 
 fn main() {
@@ -36,7 +41,7 @@ fn main() {
     if let Some(matches) = matches.subcommand_matches("check") {
         check(matches);
     }
-    if let Some(matches) = matches.subcommand_matches("conrod") {
+    if let Some(_) = matches.subcommand_matches("gui") {
         window::window_loop();
     }
 }
@@ -56,7 +61,9 @@ fn check(matches: &clap::ArgMatches<'static>) {
     ).expect("couldn't decode net file");
 
     print!("Loading checking dataset from {}... ", check_dir);
-    let check_imgs: Vec<_> = {
+    let check_imgs: Vec<_> = if check_dir == "mnist" {
+        mnist::MnistDigits::default_test_set().unwrap()
+    } else {
         let paths = std::fs::read_dir(check_dir).unwrap();
         paths.map(|p| get_img_and_label(p.unwrap().path())).collect()
     };
@@ -89,12 +96,16 @@ fn learn(matches: &clap::ArgMatches<'static>) {
     let out_net = matches.value_of("out-net");
 
     use std::fs;
-    let paths = fs::read_dir(learn_dir).unwrap();
-
     use std::collections::HashSet;
 
     print!("Loading learning dataset from {}... ", learn_dir);
-    let imgs: Vec<_> = paths.map(|p| get_img_and_label(p.unwrap().path())).collect();
+    let imgs: Vec<_> = if learn_dir == "mnist" {
+        mnist::MnistDigits::default_training_set().unwrap()
+    } else {
+        let paths = fs::read_dir(learn_dir).unwrap();
+        paths.map(|p| get_img_and_label(p.unwrap().path())).collect()
+    };
+
     let learning_labels: HashSet<&str> = imgs.iter()
         .map(|&(_, ref label)| label.as_str()).collect();
     println!("Loaded!");
@@ -115,7 +126,7 @@ fn learn(matches: &clap::ArgMatches<'static>) {
             learning_rate,
             imgs[0].0.len(),
             &[
-                (100, Tanh(1.0).into()), // TODO: make that configurable
+                (200, Tanh(1.0).into()), // TODO: make that configurable
                 (learning_labels.len(), Tanh(1.0).into())
             ]
         ), None)
@@ -184,6 +195,7 @@ fn learn(matches: &clap::ArgMatches<'static>) {
 }
 
 #[test]
+#[ignore]
 fn tests_for_raport() {
     let dir = "res/Sieci Neuronowe";
 
@@ -194,6 +206,7 @@ fn tests_for_raport() {
 
 }
 
+#[cfg(test)]
 fn raport(learn_dir: &str, check_dir: &str, sample: f64, max_epochs: usize, learning_rate: f64, skip: usize, hidden: usize) {
     let check_imgs_vec;
 
@@ -278,6 +291,7 @@ fn raport(learn_dir: &str, check_dir: &str, sample: f64, max_epochs: usize, lear
         println_correct(&check_imgs, &perc, &neuron_to_label);
 }
 
+#[cfg(test)]
 fn println_correct(check_imgs: &[(Vec<f64>, String)], perc: &MultilayerPerceptron, neuron_to_label: &HashMap<usize, &str>) {
     let mut correct = 0;
     use na::Iterable;
@@ -318,7 +332,6 @@ fn println_correct(check_imgs: &[(Vec<f64>, String)], perc: &MultilayerPerceptro
     }
 
     let mut err = 0.0;
-    use na::Iterable;
     for &(ref example, ref target) in &examples {
         let (out, _) = perc.feed_forward(example);
         err += (out[0] - target[0]).abs();

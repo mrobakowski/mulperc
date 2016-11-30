@@ -43,9 +43,19 @@ pub fn window_loop() {
         texture
     }
 
-    let mut old_path: String = assets.join("images/rust.png").to_string_lossy().into();
+    fn mnist(display: &glium::Display, datapoint: &(Vec<f64>, String)) -> glium::texture::Texture2d {
+        let rgba_image = image::DynamicImage::ImageLuma8(image::ImageBuffer::<image::Luma<u8>, _>::from_raw(28, 28, datapoint.0.iter()
+            .map(|f| (f * 255.0) as u8).collect::<Vec<u8>>()).unwrap()).to_rgba();
+        let image_dimensions = rgba_image.dimensions();
+        let raw_image = glium::texture::RawImage2d::from_raw_rgba_reversed(rgba_image.into_raw(), image_dimensions);
+        let texture = glium::texture::Texture2d::new(display, raw_image).unwrap();
+        texture
+    }
 
-    let mut image_map = window_gui::image_map(&ids, load_image(&display, &old_path));
+    let mut old_path: String = assets.join("images/rust.png").to_string_lossy().into();
+    let mut old_mnist_idx = 0;
+
+    let mut image_map = window_gui::image_map(&ids, load_image(&display, &old_path), mnist(&display, &app.mnist[old_mnist_idx]));
 
     // A type used for converting `conrod::render::Primitives` into `Command`s that can be used
     // for drawing to the glium `Surface`.
@@ -82,7 +92,7 @@ pub fn window_loop() {
                         app.image_path = path.into();
                         old_path = app.image_path.clone();
                         app.image = Some(img::get_pixels(&old_path));
-                        image_map = window_gui::image_map(&ids, load_image(&display, &old_path));
+                        image_map = window_gui::image_map(&ids, load_image(&display, &old_path), mnist(&display, &app.mnist[old_mnist_idx]));
                     }
                 }
 
@@ -120,7 +130,12 @@ pub fn window_loop() {
             use img;
             old_path = app.image_path.clone();
             app.image = Some(img::get_pixels(&old_path));
-            image_map = window_gui::image_map(&ids, load_image(&display, &old_path));
+            image_map = window_gui::image_map(&ids, load_image(&display, &old_path), mnist(&display, &app.mnist[old_mnist_idx]));
+        }
+
+        if app.mnist_idx != old_mnist_idx {
+            old_mnist_idx = app.mnist_idx;
+            image_map = window_gui::image_map(&ids, load_image(&display, &old_path), mnist(&display, &app.mnist[old_mnist_idx]));
         }
 
         // Draw the `Ui`.

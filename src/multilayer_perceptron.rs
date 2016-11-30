@@ -1,11 +1,16 @@
 use rand;
-use activation_func::{ActivationFunction, Tanh, ActivationFunctionEnum};
-use na::{DMatrix, DVector, Transpose, Outer, IterableMut, Norm, Shape};
+use activation_func::{ActivationFunction, ActivationFunctionEnum};
+#[cfg(test)]
+use activation_func::Tanh;
+use na::{DMatrix, DVector, Transpose, Outer, IterableMut, Shape};
+#[cfg(test)]
+use na::Norm;
 use std::ops::Deref;
 use std::collections::HashMap;
 use rayon::prelude::*;
 use serde::ser::{Serialize, Serializer};
 use serde::de::{Deserialize, Deserializer};
+#[cfg(test)]
 use bincode;
 
 fn make_dvector_with_bias(x: &[f64]) -> DVector<f64> {
@@ -262,6 +267,7 @@ fn test_backpropagation_matrices_sizes() {
     println!("{:?}", deltas.len());
 }
 
+#[cfg(test)]
 use img;
 
 #[test]
