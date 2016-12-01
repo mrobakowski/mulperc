@@ -169,9 +169,9 @@ pub fn gui(ui: &mut conrod::UiCell, ids: &Ids, app: &mut MulpercWindow) {
 
             widget::Text::new(&decoded)
                 .align_text_middle()
-                .mid_right_of(ids.canvas)
+                .mid_right_with_margin_on(ids.canvas, MARGIN)
                 .align_middle_y_of(ids.preview_image)
-                .font_size(100)
+                .font_size(150)
                 .set(ids.label, ui);
         }
     }

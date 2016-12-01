@@ -26,6 +26,7 @@ mod window;
 mod window_gui;
 mod mnist;
 mod gzip;
+mod autoencoder;
 
 use std::collections::HashMap;
 use multilayer_perceptron::NetFile;
@@ -43,6 +44,9 @@ fn main() {
     }
     if let Some(_) = matches.subcommand_matches("gui") {
         window::window_loop();
+    }
+    if let Some(_) = matches.subcommand_matches("autoencoder") {
+        autoencoder::run();
     }
 }
 
@@ -321,13 +325,13 @@ fn println_correct(check_imgs: &[(Vec<f64>, String)], perc: &MultilayerPerceptro
     );
 
     let examples = [
-        (&[1.0, 1.0][..], &[1.0][..]),
-        (&[1.0, 0.0][..], &[0.0][..]),
+        (&[1.0, 1.0][..], &[0.0][..]),
+        (&[1.0, 0.0][..], &[1.0][..]),
         (&[0.0, 1.0][..], &[1.0][..]),
         (&[0.0, 0.0][..], &[0.0][..]),
     ];
 
-    for _ in 0..1000 {
+    for _ in 0..3 {
         perc.learn_batch(&examples);
     }
 
@@ -338,4 +342,10 @@ fn println_correct(check_imgs: &[(Vec<f64>, String)], perc: &MultilayerPerceptro
     }
 
     println!("{}", err);
+
+    for &(ref inp, _) in &examples {
+        let (out, _) = perc.feed_forward(inp);
+        println!("inp: {:?}, out: {:?}", inp, out);
+
+    }
 }

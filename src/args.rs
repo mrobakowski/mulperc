@@ -8,6 +8,7 @@ pub fn get() -> ArgMatches<'static> {
         .about("Classifies images using multilayer perceptron.\n\
                 Written for Neural Networks classes at Wrocław University of technology")
         .subcommand(SubCommand::with_name("gui"))
+        .subcommand(SubCommand::with_name("autoencoder"))
         .subcommand(SubCommand::with_name("learn")
             .about("Learns the net")
             .arg(Arg::with_name("out-net")
