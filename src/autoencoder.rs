@@ -4,32 +4,38 @@ use activation_func::Tanh;
 use rand;
 use ::get_img_and_label;
 use std::fs;
+use img;
 
 pub fn run() -> Result<(), &'static str> {
-    let epoch_count = 10000;
+    let epoch_count = 20000;
 
-    let mnist_own: Vec<_> = {
-        let paths = fs::read_dir("res/Sieci Neuronowe").unwrap();
-        paths.map(|p| get_img_and_label(p.unwrap().path())).collect()
-    };//mnist::MnistDigits::default_training_set()?;
-    let mnist: Vec<_> = mnist_own.iter().map(|&(ref x, _)| (&x[..], &x[..])).collect();
+    let paths: Vec<_> = fs::read_dir("res/Sieci Neuronowe").unwrap().map(|p| p.unwrap().path()).collect();
+    let images_own: Vec<_> = paths.iter().map(|p| get_img_and_label(p)).collect();
+    let images: Vec<_> = images_own.iter().map(|&(ref x, _)| (&x[..], &x[..])).collect();
     //    let mnist_test = mnist::MnistDigits::default_test_set()?;
-    let mut autoencoder = MultilayerPerceptron::new(0.3, 7 * 10, &[
-        (20, Tanh(1.0).into()),
+    let mut autoencoder = MultilayerPerceptron::new(0.7, 7 * 10, &[
+        (50, Tanh(1.0).into()),
         (7 * 10, Tanh(1.0).into())
     ]);
 
-    let sample_size = (mnist.len() as f64 * 0.2) as usize;
+    let sample_size = (images.len() as f64 * 0.1) as usize;
 
     use pbr::ProgressBar;
     let mut pbr = ProgressBar::new(epoch_count);
 
     for _ in 0..epoch_count {
-        let sample: Vec<(&[f64], &[f64])> = rand::sample(&mut rand::thread_rng(), mnist.iter().cloned(), sample_size);
+        let sample: Vec<(&[f64], &[f64])> = rand::sample(&mut rand::thread_rng(), images.iter().cloned(), sample_size);
         autoencoder.learn_batch(&sample);
-        let error = calc_err(&autoencoder, &mnist);
+        let error = calc_err(&autoencoder, &images);
         pbr.message(&format!("error: {0:>5.2}  ", error));
         pbr.inc();
+    }
+
+    let outs: Vec<_> = images.iter().map(|i| autoencoder.feed_forward(&i.0[..]).0.at).collect();
+    for (i, p) in outs.into_iter().zip(paths.iter()) {
+        use std::path::Path;
+        let p = Path::new("autoencoded").join(p);
+        img::save(&i, 7, 10, p);
     }
 
     Ok(())

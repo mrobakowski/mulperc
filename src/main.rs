@@ -22,8 +22,8 @@ mod activation_func;
 mod img;
 mod validators;
 mod args;
-mod window;
-mod window_gui;
+//mod window;
+//mod window_gui;
 mod mnist;
 mod gzip;
 mod autoencoder;
@@ -43,7 +43,7 @@ fn main() {
         check(matches);
     }
     if let Some(_) = matches.subcommand_matches("gui") {
-        window::window_loop();
+//        window::window_loop();
     }
     if let Some(_) = matches.subcommand_matches("autoencoder") {
         autoencoder::run();
