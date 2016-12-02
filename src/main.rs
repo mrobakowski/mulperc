@@ -50,7 +50,7 @@ fn main() {
     }
 }
 
-fn get_img_and_label<P: AsRef<std::path::Path>>(p: P) -> (Vec<f64>, String) {
+pub fn get_img_and_label<P: AsRef<std::path::Path>>(p: P) -> (Vec<f64>, String) {
     let image = img::get_pixels(&p);
     let label = p.as_ref().file_name().unwrap().to_str().unwrap().split("_").next().unwrap();
     (image, String::from(label))
