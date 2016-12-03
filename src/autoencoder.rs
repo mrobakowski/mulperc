@@ -1,21 +1,20 @@
 use mnist;
 use multilayer_perceptron::MultilayerPerceptron;
-use activation_func::Tanh;
+use activation_func::*;
 use rand;
 use ::get_img_and_label;
 use std::fs;
 use img;
 
 pub fn run() -> Result<(), &'static str> {
-    let epoch_count = 20000;
+    let epoch_count = 5000;
 
     let paths: Vec<_> = fs::read_dir("res/Sieci Neuronowe").unwrap().map(|p| p.unwrap().path()).collect();
     let images_own: Vec<_> = paths.iter().map(|p| get_img_and_label(p)).collect();
     let images: Vec<_> = images_own.iter().map(|&(ref x, _)| (&x[..], &x[..])).collect();
-    //    let mnist_test = mnist::MnistDigits::default_test_set()?;
-    let mut autoencoder = MultilayerPerceptron::new(0.7, 7 * 10, &[
-        (50, Tanh(1.0).into()),
-        (7 * 10, Tanh(1.0).into())
+    let mut autoencoder = MultilayerPerceptron::new(0.3, 7 * 10, &[
+        (20, Tanh(1.0).into()),
+        (7 * 10, Sigmoid(50.0).into())
     ]);
 
     let sample_size = (images.len() as f64 * 0.1) as usize;

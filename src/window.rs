@@ -47,11 +47,11 @@ pub fn window_loop() {
     }
 
     fn autoencoder_res(app: &window_gui::MulpercWindow, display: &glium::Display, data: &[f64]) -> glium::texture::Texture2d {
-        let empty = image::DynamicImage::ImageRgba8(image::ImageBuffer::from_pixel(1, 1, 0));
+        let empty = image::DynamicImage::ImageRgba8(image::ImageBuffer::from_pixel(1, 1, image::Rgba([0, 0, 0, 0]))).to_rgba();
         match app.net_autoencoder {
             Some(ref encoder) => {
                 let res = encoder.feed_forward(data).0;
-                let rgba_image = image::DynamicImage::ImageLuma8(image::ImageBuffer::<image::Luma<u8>, _>::from_raw(28, 28, res.iter()
+                let rgba_image = image::DynamicImage::ImageLuma8(image::ImageBuffer::<image::Luma<u8>, _>::from_raw(28, 28, res.at.iter()
                     .map(|f| (f * 255.0) as u8).collect::<Vec<u8>>()).unwrap()).to_rgba();
                 let image_dimensions = rgba_image.dimensions();
                 let raw_image = glium::texture::RawImage2d::from_raw_rgba_reversed(rgba_image.into_raw(), image_dimensions);
@@ -73,7 +73,7 @@ pub fn window_loop() {
                                               load_image(&display, &old_path),
                                               mnist(&display, &app.mnist[old_mnist_idx]),
                                               load_image(&display, &old_path_autoencoder),
-                                              autoencoder_res(&app, &display, img::get_pixels(&old_path_autoencoder)));
+                                              autoencoder_res(&app, &display, &img::get_pixels(&old_path_autoencoder)));
 
     let mut renderer = conrod::backend::glium::Renderer::new(&display).unwrap();
 
@@ -93,7 +93,13 @@ pub fn window_loop() {
                         app.image_path = path.into();
                         old_path = app.image_path.clone();
                         app.image = Some(img::get_pixels(&old_path));
-                        image_map = window_gui::image_map(&ids, load_image(&display, &old_path), mnist(&display, &app.mnist[old_mnist_idx]));
+                        image_map = window_gui::image_map(
+                            &ids,
+                            load_image(&display, &old_path),
+                            mnist(&display, &app.mnist[old_mnist_idx]),
+                            load_image(&display, &old_path_autoencoder),
+                            autoencoder_res(&app, &display, &img::get_pixels(&old_path_autoencoder))
+                        );
                     }
                 }
 
@@ -124,12 +130,24 @@ pub fn window_loop() {
             use img;
             old_path = app.image_path.clone();
             app.image = Some(img::get_pixels(&old_path));
-            image_map = window_gui::image_map(&ids, load_image(&display, &old_path), mnist(&display, &app.mnist[old_mnist_idx]));
+            image_map = window_gui::image_map(
+                &ids,
+                load_image(&display, &old_path),
+                mnist(&display, &app.mnist[old_mnist_idx]),
+                load_image(&display, &old_path_autoencoder),
+                autoencoder_res(&app, &display, &img::get_pixels(&old_path_autoencoder))
+            );
         }
 
         if app.mnist_idx != old_mnist_idx {
             old_mnist_idx = app.mnist_idx;
-            image_map = window_gui::image_map(&ids, load_image(&display, &old_path), mnist(&display, &app.mnist[old_mnist_idx]));
+            image_map = window_gui::image_map(
+                &ids,
+                load_image(&display, &old_path),
+                mnist(&display, &app.mnist[old_mnist_idx]),
+                load_image(&display, &old_path_autoencoder),
+                autoencoder_res(&app, &display, &img::get_pixels(&old_path_autoencoder))
+            );
         }
 
         if let Some(primitives) = ui.draw_if_changed() {

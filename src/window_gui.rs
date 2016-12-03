@@ -76,6 +76,8 @@ pub fn image_map<T>(ids: &Ids, preview_image: T, mnist_img: T, preview_image_aut
 
 widget_ids! {
     pub struct Ids {
+        main_canvas,
+
         tabs,
         classifier_canvas,
         autoencoder,
@@ -110,10 +112,11 @@ pub fn gui(ui: &mut conrod::UiCell, ids: &Ids, app: &mut MulpercWindow) {
     const MARGIN: conrod::Scalar = 30.0;
     const GAP: conrod::Scalar = 20.0;
 
-    widget::Tabs::new(&[(ids.classifier_canvas, "Classifier"), (ids.autoencoder, "Autoencoder")])
-        .pad(MARGIN).scroll_kids_vertically().set(ids.tabs, ui);
+    widget::Canvas::new().pad(MARGIN).scroll_kids_vertically().set(ids.main_canvas, ui);
 
-    //    widget::Canvas::new().pad(MARGIN).scroll_kids_vertically().set(ids.classifier_canvas, ui);
+    widget::Tabs::new(&[(ids.classifier_canvas, "Classifier"), (ids.autoencoder, "Autoencoder")])
+        .parent(ids.main_canvas)
+        .pad(MARGIN).scroll_kids_vertically().set(ids.tabs, ui);
 
     widget::Text::new(&app.net_path)
         .align_text_middle()
@@ -237,8 +240,8 @@ pub fn gui(ui: &mut conrod::UiCell, ids: &Ids, app: &mut MulpercWindow) {
 
     fn open_autoencoder<P: AsRef<Path>>(p: P) -> Option<MultilayerPerceptron> {
         use std::fs::File;
-        File::open(p).map_err(|_|()).and_then(|mut f|
-            bincode::serde::deserialize_from(&mut f, bincode::SizeLimit::Infinite).map_err(|_|())
+        File::open(p).map_err(|_| ()).and_then(|mut f|
+            bincode::serde::deserialize_from(&mut f, bincode::SizeLimit::Infinite).map_err(|_| ())
         ).ok()
     }
 
@@ -261,17 +264,17 @@ pub fn gui(ui: &mut conrod::UiCell, ids: &Ids, app: &mut MulpercWindow) {
 
     let mult = 25.0;
 
-    widget::Image::new()
-        .w_h(7.0 * mult, 10.0 * mult)
-        .mid_left_of(ids.autoencoder)
-        .down(GAP)
-        .set(ids.preview_image_autoencoder, ui);
-
-    widget::Image::new()
-        .w_h(7.0 * mult, 10.0 * mult)
-        .mid_right_of(ids.autoencoder)
-        .down(GAP)
-        .set(ids.preview_image_autoencoder_res, ui);
+    //    widget::Image::new()
+    //        .w_h(7.0 * mult, 10.0 * mult)
+    //        .mid_left_of(ids.autoencoder)
+    //        .down(GAP)
+    //        .set(ids.preview_image_autoencoder, ui);
+    //
+    //    widget::Image::new()
+    //        .w_h(7.0 * mult, 10.0 * mult)
+    //        .mid_right_of(ids.autoencoder)
+    //        .down(GAP)
+    //        .set(ids.preview_image_autoencoder_res, ui);
 
     widget::Scrollbar::y_axis(ids.classifier_canvas).auto_hide(true).set(ids.canvas_scrollbar, ui);
     widget::Scrollbar::y_axis(ids.autoencoder).auto_hide(true).set(ids.autoencoder_scrollbar, ui);

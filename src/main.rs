@@ -22,8 +22,8 @@ mod activation_func;
 mod img;
 mod validators;
 mod args;
-//mod window;
-//mod window_gui;
+mod window;
+mod window_gui;
 mod mnist;
 mod gzip;
 mod autoencoder;
@@ -38,15 +38,14 @@ fn main() {
     let matches = args::get();
     if let Some(matches) = matches.subcommand_matches("learn") {
         learn(matches);
-    }
-    if let Some(matches) = matches.subcommand_matches("check") {
+    } else if let Some(matches) = matches.subcommand_matches("check") {
         check(matches);
-    }
-    if let Some(_) = matches.subcommand_matches("gui") {
-//        window::window_loop();
-    }
-    if let Some(_) = matches.subcommand_matches("autoencoder") {
+    } else if let Some(_) = matches.subcommand_matches("gui") {
+        window::window_loop();
+    } else if let Some(_) = matches.subcommand_matches("autoencoder") {
         autoencoder::run();
+    } else {
+        window::window_loop();
     }
 }
 
@@ -207,7 +206,6 @@ fn tests_for_raport() {
         print!("{} ", hidden);
         raport(dir, dir, 0.2, 50, 0.5, 10, hidden);
     }
-
 }
 
 #[cfg(test)]
@@ -283,8 +281,8 @@ fn raport(learn_dir: &str, check_dir: &str, sample: f64, max_epochs: usize, lear
         );
         perc.learn_batch(&sample);
         if i % skip == 0 {
-//            print!("{}\t", i);
-//            println_correct(&check_imgs, &perc, &neuron_to_label);
+            //            print!("{}\t", i);
+            //            println_correct(&check_imgs, &perc, &neuron_to_label);
         }
 
         //        pb.inc();
@@ -292,7 +290,7 @@ fn raport(learn_dir: &str, check_dir: &str, sample: f64, max_epochs: usize, lear
 
     //    pb.finish_println("Finished learning!\n");
 
-        println_correct(&check_imgs, &perc, &neuron_to_label);
+    println_correct(&check_imgs, &perc, &neuron_to_label);
 }
 
 #[cfg(test)]
@@ -313,7 +311,8 @@ fn println_correct(check_imgs: &[(Vec<f64>, String)], perc: &MultilayerPerceptro
     println!("{}", correct);
 }
 
-#[test] fn and_test() {
+#[test]
+fn and_test() {
     use activation_func::Tanh;
     let mut perc = MultilayerPerceptron::new(
         0.5,
@@ -346,6 +345,5 @@ fn println_correct(check_imgs: &[(Vec<f64>, String)], perc: &MultilayerPerceptro
     for &(ref inp, _) in &examples {
         let (out, _) = perc.feed_forward(inp);
         println!("inp: {:?}, out: {:?}", inp, out);
-
     }
 }
