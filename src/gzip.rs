@@ -28,15 +28,6 @@ impl GzipData {
         })
     }
 
-    // TODO test
-    pub fn from_buf(v: Vec<u8>) -> GzipData {
-
-        GzipData {
-            v: v,
-            idx: 0
-        }
-    }
-
     /// Returns the uncompressed data.
     pub fn into_bytes(self) -> Vec<u8> { self.v }
 

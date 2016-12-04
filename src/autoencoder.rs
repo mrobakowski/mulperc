@@ -1,8 +1,7 @@
-use mnist;
 use multilayer_perceptron::MultilayerPerceptron;
 use activation_func::*;
 use rand;
-use ::get_img_and_label;
+use img::get_img_and_label;
 use std::fs;
 use img;
 
