@@ -10,9 +10,13 @@ use bincode;
 use na::Iterable;
 use mnist::MnistDigits;
 use std::ops::{Deref, DerefMut};
+use img;
+use std::fs::File;
 
-pub const WIN_W: u32 = 800;
+pub const WIN_W: u32 = 600;
 pub const WIN_H: u32 = 720;
+const MARGIN: conrod::Scalar = 30.0;
+const GAP: conrod::Scalar = 20.0;
 
 pub struct AppState {
     pub classifier: ClassifierState,
@@ -21,8 +25,8 @@ pub struct AppState {
 }
 
 pub struct WithPath<T> {
-    data: Option<T>,
-    path: Option<String>
+    pub data: Option<T>,
+    pub path: Option<String>
 }
 
 impl<T> WithPath<T> {
@@ -103,9 +107,10 @@ pub fn theme() -> conrod::Theme {
 
 pub fn image_map<T>(
     ids: &Ids,
+    classifier_preview_img: T,
 ) -> conrod::image::Map<T> {
     image_map! {
-
+        (ids.classifier_preview_img, classifier_preview_img)
     }
 }
 
@@ -127,6 +132,16 @@ widget_ids! {
         classifier_scrollbar,
         mnist_preview_scrollbar,
         autoencoder_scrollbar,
+
+        //// CLASSIFIER ////
+        classifier_title,
+        classifier_img_btn,
+        classifier_net_btn,
+        classifier_preview_img,
+        classifier_res,
+
+        //// MNIST PREVIEW ////
+
     }
 }
 
@@ -134,10 +149,7 @@ widget_ids! {
 pub fn gui(ui: &mut conrod::UiCell, ids: &Ids, app: &mut AppState) {
     use conrod::{widget, Labelable, Positionable, Sizeable, Widget};
 
-    const MARGIN: conrod::Scalar = 30.0;
-    const GAP: conrod::Scalar = 20.0;
-
-    widget::Canvas::new().pad(MARGIN).set(ids.main_canvas, ui);
+    widget::Canvas::new().set(ids.main_canvas, ui);
 
     widget::Tabs::new(
         &[
@@ -160,83 +172,8 @@ pub fn gui(ui: &mut conrod::UiCell, ids: &Ids, app: &mut AppState) {
     autoencoder_tab(ui, ids, &mut app.autoencoder);
     {
         //
-        //    widget::Text::new(&app.net_path)
-        //        .align_text_middle()
-        //        .mid_top_of(ids.classifier_canvas)
-        //        .set(ids.title, ui);
         //
-        //    for _ in widget::Button::new()
-        //        .label("Image")
-        //        .top_left_of(ids.classifier_canvas)
-        //        .down(MARGIN)
-        //        .w_h(130.0, 70.0)
-        //        .set(ids.image_path_btn, ui)
-        //        {
-        //            if let Ok(response) = nfd::open_file_dialog(None, None) {
-        //                if let nfd::Response::Okay(path) = response {
-        //                    app.image_path = path;
-        //                }
-        //            }
-        //        }
-        //
-        //    fn open_net<P: AsRef<Path>>(p: P) -> Option<(MultilayerPerceptron, HashMap<usize, String>)> {
-        //        use std::fs::File;
-        //        struct IDontCare;
-        //        impl<T: std::error::Error> From<T> for IDontCare {
-        //            fn from(_: T) -> Self {
-        //                IDontCare
-        //            }
-        //        }
-        //        let res: Result<_, IDontCare> = (|| {
-        //            let mut file = File::open(p)?;
-        //            let NetFile(perc, ntl) = bincode::serde::deserialize_from(&mut file, bincode::SizeLimit::Infinite)?;
-        //
-        //            Ok((perc, ntl))
-        //        })();
-        //        res.ok()
-        //    }
-        //
-        //    for _ in widget::Button::new()
-        //        .label("Net")
-        //        .mid_right_of(ids.classifier_canvas)
-        //        .align_middle_y_of(ids.image_path_btn)
-        //        .set(ids.net_path_btn, ui)
-        //        {
-        //            if let Ok(response) = nfd::open_file_dialog(None, None) {
-        //                if let nfd::Response::Okay(path) = response {
-        //                    if let x @ Some(..) = open_net(&path) {
-        //                        app.net_path = path;
-        //                        app.net = x;
-        //                    }
-        //                }
-        //            }
-        //        }
-        //
-        //
-        //    let mult = 25.0;
-        //
-        //    widget::Image::new()
-        //        .w_h(7.0 * mult, 10.0 * mult)
-        //        .mid_left_of(ids.classifier_canvas)
-        //        .down(GAP)
-        //        .set(ids.preview_image, ui);
-        //
-        //    if let Some((ref perc, ref labels)) = app.net {
-        //        if let Some(ref image) = app.image {
-        //            let out = perc.feed_forward(&*image).0;
-        //            let decoded = &labels[&out.iter().enumerate()
-        //                .max_by(|a, b|
-        //                    a.1.partial_cmp(b.1).unwrap()
-        //                ).unwrap().0];
-        //
-        //            widget::Text::new(&decoded)
-        //                .align_text_middle()
-        //                .mid_right_with_margin_on(ids.classifier_canvas, MARGIN)
-        //                .align_middle_y_of(ids.preview_image)
-        //                .font_size(150)
-        //                .set(ids.label, ui);
-        //        }
-        //    }
+
         //
         //    for val in widget::NumberDialer::new(app.mnist_idx as f64, 0f64, 59999f64, 0)
         //        .w_h(130.0, 70.0)
@@ -320,17 +257,93 @@ pub fn gui(ui: &mut conrod::UiCell, ids: &Ids, app: &mut AppState) {
     }
 }
 
-fn classifier_tab(ui: &mut conrod::UiCell, ids: &Ids, app: &mut ClassifierState) {
+fn classifier_tab(ui: &mut conrod::UiCell, ids: &Ids, classifier: &mut ClassifierState) {
     use conrod::{widget, Labelable, Positionable, Sizeable, Widget};
 
     widget::Canvas::new()
         .wh_of(ids.classifier_tab)
         .middle_of(ids.classifier_tab)
         .scroll_kids_vertically()
+        .pad(MARGIN)
         .set(ids.classifier_canvas, ui);
 
 
-    widget::Scrollbar::y_axis(ids.classifier_scrollbar).auto_hide(true).set(ids.tabs_scrollbar, ui);
+    widget::Text::new(classifier.net.path.as_ref().map(|s| s.as_str()).unwrap_or("No net loaded"))
+        .align_text_middle()
+        .mid_top_of(ids.classifier_canvas)
+        .set(ids.classifier_title, ui);
+
+    let half_width = ui.kid_area_of(ids.classifier_canvas).unwrap().w() / 2.0 - GAP / 2.0;
+
+    // buttons
+    {
+        for _ in widget::Button::new()
+            .label("Image")
+            .top_left_of(ids.classifier_canvas)
+            .down(MARGIN)
+            .w_h(half_width, 70.0)
+            .set(ids.classifier_img_btn, ui)
+            {
+                if let Ok(response) = nfd::open_file_dialog(None, None) {
+                    if let nfd::Response::Okay(path) = response {
+                        classifier.image.data = Some(img::get_pixels(&path));
+                        classifier.image.path = Some(path);
+                    }
+                }
+            }
+
+        for _ in widget::Button::new()
+            .label("Net")
+            .right(GAP)
+            .w_h(half_width, 70.0)
+            .set(ids.classifier_net_btn, ui)
+            {
+                if let Ok(response) = nfd::open_file_dialog(None, None) {
+                    if let nfd::Response::Okay(path) = response {
+                        classifier.net.data = File::open(&path).map_err(|_| "couldn't open net file")
+                            .and_then(|mut f| {
+                                bincode::serde::deserialize_from(&mut f, bincode::SizeLimit::Infinite)
+                                    .map_err(|_| "couldn't deserialize map file")
+                            }).ok();
+                        classifier.net.path = Some(path);
+                    }
+                }
+            }
+    }
+
+    let mult = 25.0;
+    let image_h = 10.0 / 7.0 * half_width;
+
+    widget::Image::new()
+        .w_h(half_width, image_h)
+        .top_left_of(ids.classifier_canvas)
+        .down(GAP)
+        .set(ids.classifier_preview_img, ui);
+
+    if let Some(NetFile(ref perc, ref labels)) = classifier.net.data {
+        if let Some(ref image) = classifier.image.data {
+            let decoded = if perc.layers[0].num_inputs()-1 == image.len() {
+                let out = perc.feed_forward(&*image).0;
+                &labels[&out.iter().enumerate()
+                    .max_by(|a, b|
+                        a.1.partial_cmp(b.1).unwrap()
+                    ).unwrap().0]
+            } else {
+                "ERR"
+            };
+
+            widget::Text::new(&decoded)
+                .align_text_middle()
+                .w(half_width)
+                .right(GAP)
+                .y_relative(image_h * 0.15)
+                .font_size((image_h * 1.2)as u32)
+                .set(ids.classifier_res, ui);
+        }
+    }
+
+
+    widget::Scrollbar::y_axis(ids.classifier_canvas).auto_hide(true).set(ids.classifier_scrollbar, ui);
 }
 
 fn mnist_preview_tab(ui: &mut conrod::UiCell, ids: &Ids, app: &mut MnistPreviewState) {
@@ -340,10 +353,11 @@ fn mnist_preview_tab(ui: &mut conrod::UiCell, ids: &Ids, app: &mut MnistPreviewS
         .wh_of(ids.mnist_preview_tab)
         .middle_of(ids.mnist_preview_tab)
         .scroll_kids_vertically()
+        .pad(MARGIN)
         .set(ids.mnist_preview_canvas, ui);
 
 
-    widget::Scrollbar::y_axis(ids.mnist_preview_scrollbar).auto_hide(true).set(ids.tabs_scrollbar, ui);
+    widget::Scrollbar::y_axis(ids.mnist_preview_canvas).auto_hide(true).set(ids.mnist_preview_scrollbar, ui);
 }
 
 fn autoencoder_tab(ui: &mut conrod::UiCell, ids: &Ids, app: &mut AutoencoderState) {
@@ -353,8 +367,9 @@ fn autoencoder_tab(ui: &mut conrod::UiCell, ids: &Ids, app: &mut AutoencoderStat
         .wh_of(ids.autoencoder_tab)
         .middle_of(ids.autoencoder_tab)
         .scroll_kids_vertically()
+        .pad(MARGIN)
         .set(ids.autoencoder_canvas, ui);
 
 
-    widget::Scrollbar::y_axis(ids.autoencoder_scrollbar).auto_hide(true).set(ids.tabs_scrollbar, ui);
+    widget::Scrollbar::y_axis(ids.autoencoder_canvas).auto_hide(true).set(ids.autoencoder_scrollbar, ui);
 }

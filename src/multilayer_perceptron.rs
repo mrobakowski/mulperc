@@ -59,6 +59,10 @@ impl Layer {
         inputs * &self.weights
     }
 
+    pub fn num_inputs(&self) -> usize {
+        self.weights.nrows()
+    }
+
     fn activate(&self, inputs: &DVector<f64>) -> DVector<f64> {
         let mut res = self.net(inputs);
         for i in 0..res.len() {
@@ -70,7 +74,7 @@ impl Layer {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct MultilayerPerceptron {
-    layers: Vec<Layer>,
+    pub layers: Vec<Layer>,
     learning_rate: f64
 }
 
