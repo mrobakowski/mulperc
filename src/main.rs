@@ -17,6 +17,7 @@ extern crate bincode;
 extern crate image;
 extern crate find_folder;
 
+#[macro_use] mod util;
 mod multilayer_perceptron;
 mod activation_func;
 mod img;

@@ -12,6 +12,7 @@ use mnist::MnistDigits;
 use std::ops::{Deref, DerefMut};
 use img;
 use std::fs::File;
+#[macro_use] use util;
 
 pub const WIN_W: u32 = 600;
 pub const WIN_H: u32 = 720;
@@ -308,11 +309,9 @@ fn classifier_tab(ui: &mut conrod::UiCell, ids: &Ids, classifier: &mut Classifie
             {
                 if let Ok(response) = nfd::open_file_dialog(None, None) {
                     if let nfd::Response::Okay(path) = response {
-                        classifier.net.data = File::open(&path).map_err(|_| "couldn't open net file")
-                            .and_then(|mut f| {
-                                bincode::serde::deserialize_from(&mut f, bincode::SizeLimit::Infinite)
-                                    .map_err(|_| "couldn't deserialize map file")
-                            }).ok();
+                        classifier.net.data = ignore_err! {
+                            bincode::serde::deserialize_from(&mut File::open(&path)?, bincode::SizeLimit::Infinite)
+                        };
                         classifier.net.path = Some(path);
                     }
                 }
@@ -410,7 +409,6 @@ fn mnist_preview_tab(ui: &mut conrod::UiCell, ids: &Ids, mnist_state: &mut Mnist
         .align_middle_x_of(ids.mnist_preview_canvas)
         .font_size(50)
         .set(ids.mnist_label, ui);
-
 
 
     widget::Scrollbar::y_axis(ids.mnist_preview_canvas).auto_hide(true).set(ids.mnist_preview_scrollbar, ui);
