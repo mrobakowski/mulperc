@@ -63,7 +63,8 @@ pub struct AutoencoderState {
 }
 
 pub struct MnistPreviewState {
-    pub idx: usize
+    pub idx: usize,
+    pub label: String,
 }
 
 impl AppState {
@@ -78,7 +79,8 @@ impl AppState {
                 src_image: None,
             },
             mnist: MnistPreviewState {
-                idx: 0
+                idx: 0,
+                label: "Not loaded".into()
             },
         }
     }
@@ -108,9 +110,11 @@ pub fn theme() -> conrod::Theme {
 pub fn image_map<T>(
     ids: &Ids,
     classifier_preview_img: T,
+    mnist_img: T,
 ) -> conrod::image::Map<T> {
     image_map! {
-        (ids.classifier_preview_img, classifier_preview_img)
+        (ids.classifier_preview_img, classifier_preview_img),
+        (ids.mnist_img, mnist_img)
     }
 }
 
@@ -141,7 +145,11 @@ widget_ids! {
         classifier_res,
 
         //// MNIST PREVIEW ////
-
+        mnist_idx_dialer,
+        mnist_prev_btn,
+        mnist_next_btn,
+        mnist_img,
+        mnist_label,
     }
 }
 
@@ -322,7 +330,7 @@ fn classifier_tab(ui: &mut conrod::UiCell, ids: &Ids, classifier: &mut Classifie
 
     if let Some(NetFile(ref perc, ref labels)) = classifier.net.data {
         if let Some(ref image) = classifier.image.data {
-            let decoded = if perc.layers[0].num_inputs()-1 == image.len() {
+            let decoded = if perc.layers[0].num_inputs() - 1 == image.len() {
                 let out = perc.feed_forward(&*image).0;
                 &labels[&out.iter().enumerate()
                     .max_by(|a, b|
@@ -337,7 +345,7 @@ fn classifier_tab(ui: &mut conrod::UiCell, ids: &Ids, classifier: &mut Classifie
                 .w(half_width)
                 .right(GAP)
                 .y_relative(image_h * 0.15)
-                .font_size((image_h * 1.2)as u32)
+                .font_size((image_h * 1.2) as u32)
                 .set(ids.classifier_res, ui);
         }
     }
@@ -346,7 +354,7 @@ fn classifier_tab(ui: &mut conrod::UiCell, ids: &Ids, classifier: &mut Classifie
     widget::Scrollbar::y_axis(ids.classifier_canvas).auto_hide(true).set(ids.classifier_scrollbar, ui);
 }
 
-fn mnist_preview_tab(ui: &mut conrod::UiCell, ids: &Ids, app: &mut MnistPreviewState) {
+fn mnist_preview_tab(ui: &mut conrod::UiCell, ids: &Ids, mnist_state: &mut MnistPreviewState) {
     use conrod::{widget, Labelable, Positionable, Sizeable, Widget};
 
     widget::Canvas::new()
@@ -355,6 +363,54 @@ fn mnist_preview_tab(ui: &mut conrod::UiCell, ids: &Ids, app: &mut MnistPreviewS
         .scroll_kids_vertically()
         .pad(MARGIN)
         .set(ids.mnist_preview_canvas, ui);
+
+    for val in widget::NumberDialer::new(mnist_state.idx as f64, 0.0, 59_999.0, 0)
+        .w_h(100.0, 60.0)
+        .mid_top_of(ids.mnist_preview_canvas)
+        .set(ids.mnist_idx_dialer, ui)
+        {
+            mnist_state.idx = val as usize;
+        }
+
+    let w = ui.kid_area_of(ids.mnist_preview_canvas).unwrap().w() - 2.0 * GAP;
+    let image_size = 4.0 / 6.0 * w;
+    let btn_width = w / 6.0;
+
+    for _ in widget::Button::new()
+        .label("<")
+        .top_left_of(ids.mnist_preview_canvas)
+        .down(MARGIN)
+        .w_h(btn_width, image_size)
+        .set(ids.mnist_prev_btn, ui)
+        {
+            if mnist_state.idx > 0 && mnist_state.idx <= 59_999 {
+                mnist_state.idx -= 1;
+            }
+        }
+
+    widget::Image::new()
+        .w_h(image_size, image_size)
+        .right(GAP)
+        .set(ids.mnist_img, ui);
+
+    for _ in widget::Button::new()
+        .label(">")
+        .right(GAP)
+        .w_h(btn_width, image_size)
+        .set(ids.mnist_next_btn, ui)
+        {
+            if mnist_state.idx >= 0 && mnist_state.idx < 59_999 {
+                mnist_state.idx += 1;
+            }
+        }
+
+    widget::Text::new(&mnist_state.label)
+        .align_text_middle()
+        .down(GAP)
+        .align_middle_x_of(ids.mnist_preview_canvas)
+        .font_size(50)
+        .set(ids.mnist_label, ui);
+
 
 
     widget::Scrollbar::y_axis(ids.mnist_preview_canvas).auto_hide(true).set(ids.mnist_preview_scrollbar, ui);
