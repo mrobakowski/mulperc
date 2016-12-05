@@ -12,7 +12,8 @@ use mnist::MnistDigits;
 use std::ops::{Deref, DerefMut};
 use img;
 use std::fs::File;
-#[macro_use] use util;
+#[macro_use]
+use util;
 
 pub const WIN_W: u32 = 600;
 pub const WIN_H: u32 = 720;
@@ -55,7 +56,9 @@ impl<T> DerefMut for WithPath<T> {
 
 pub struct ClassifierState {
     pub image: WithPath<Vec<f64>>,
-    pub net: WithPath<NetFile>
+    pub net: WithPath<NetFile>,
+    pub drawing: bool,
+    pub drawn_image: Vec<bool>,
 }
 
 pub struct AutoencoderState {
@@ -74,6 +77,8 @@ impl AppState {
             classifier: ClassifierState {
                 image: WithPath::new(),
                 net: WithPath::new(),
+                drawing: false,
+                drawn_image: Vec::new(),
             },
             autoencoder: AutoencoderState {
                 net: WithPath::new(),
@@ -144,6 +149,9 @@ widget_ids! {
         classifier_net_btn,
         classifier_preview_img,
         classifier_res,
+        classifier_drawing_toggle,
+        classifier_drawing_matrix,
+        classifier_drawing_cells[],
 
         //// MNIST PREVIEW ////
         mnist_idx_dialer,
@@ -155,7 +163,7 @@ widget_ids! {
 }
 
 
-pub fn gui(ui: &mut conrod::UiCell, ids: &Ids, app: &mut AppState) {
+pub fn gui(ui: &mut conrod::UiCell, ids: &mut Ids, app: &mut AppState) {
     use conrod::{widget, Labelable, Positionable, Sizeable, Widget};
 
     widget::Canvas::new().set(ids.main_canvas, ui);
@@ -179,94 +187,9 @@ pub fn gui(ui: &mut conrod::UiCell, ids: &Ids, app: &mut AppState) {
     classifier_tab(ui, ids, &mut app.classifier);
     mnist_preview_tab(ui, ids, &mut app.mnist);
     autoencoder_tab(ui, ids, &mut app.autoencoder);
-    {
-        //
-        //
-
-        //
-        //    for val in widget::NumberDialer::new(app.mnist_idx as f64, 0f64, 59999f64, 0)
-        //        .w_h(130.0, 70.0)
-        //        .down(GAP)
-        //        .align_middle_x_of(ids.classifier_canvas)
-        //        .set(ids.mnist_idx, ui)
-        //        {
-        //            app.mnist_idx = val as usize;
-        //        }
-        //
-        //    widget::Image::new()
-        //        .w_h(280.0, 280.0)
-        //        .down(GAP)
-        //        .align_middle_x_of(ids.classifier_canvas)
-        //        .set(ids.mnist_img, ui);
-        //
-        //    widget::Text::new(&app.mnist[app.mnist_idx].1)
-        //        .down(GAP)
-        //        .align_middle_x_of(ids.classifier_canvas)
-        //        .set(ids.mnist_label, ui);
-        //
-        //
-        //    ///////// AUTOENCODER //////////
-        //
-        //    widget::Text::new(&app.autoencoder_path)
-        //        .align_text_middle()
-        //        .mid_top_of(ids.autoencoder)
-        //        .set(ids.title_autoencoder, ui);
-        //
-        //    for _ in widget::Button::new()
-        //        .label("Image")
-        //        .top_left_of(ids.autoencoder)
-        //        .down(MARGIN)
-        //        .w_h(130.0, 70.0)
-        //        .set(ids.image_path_btn_autoencoder, ui)
-        //        {
-        //            if let Ok(response) = nfd::open_file_dialog(None, None) {
-        //                if let nfd::Response::Okay(path) = response {
-        //                    app.image_path_autoencoder = path;
-        //                }
-        //            }
-        //        }
-        //
-        //    fn open_autoencoder<P: AsRef<Path>>(p: P) -> Option<MultilayerPerceptron> {
-        //        use std::fs::File;
-        //        File::open(p).map_err(|_| ()).and_then(|mut f|
-        //            bincode::serde::deserialize_from(&mut f, bincode::SizeLimit::Infinite).map_err(|_| ())
-        //        ).ok()
-        //    }
-        //
-        //    for _ in widget::Button::new()
-        //        .label("Net")
-        //        .mid_right_of(ids.autoencoder)
-        //        .align_middle_y_of(ids.image_path_btn_autoencoder)
-        //        .set(ids.net_path_btn_autoencoder, ui)
-        //        {
-        //            if let Ok(response) = nfd::open_file_dialog(None, None) {
-        //                if let nfd::Response::Okay(path) = response {
-        //                    if let x @ Some(..) = open_autoencoder(&path) {
-        //                        app.autoencoder_path = path;
-        //                        app.net_autoencoder = x;
-        //                    }
-        //                }
-        //            }
-        //        }
-        //
-        //
-        //    let mult = 25.0;
-        //
-        //    //    widget::Image::new()
-        //    //        .w_h(7.0 * mult, 10.0 * mult)
-        //    //        .mid_left_of(ids.autoencoder)
-        //    //        .down(GAP)
-        //    //        .set(ids.preview_image_autoencoder, ui);
-        //    //
-        //    //    widget::Image::new()
-        //    //        .w_h(7.0 * mult, 10.0 * mult)
-        //    //        .mid_right_of(ids.autoencoder)
-        //    //        .down(GAP)
-        //    //        .set(ids.preview_image_autoencoder_res, ui);
-    }
 }
 
-fn classifier_tab(ui: &mut conrod::UiCell, ids: &Ids, classifier: &mut ClassifierState) {
+fn classifier_tab(ui: &mut conrod::UiCell, ids: &mut Ids, classifier: &mut ClassifierState) {
     use conrod::{widget, Labelable, Positionable, Sizeable, Widget};
 
     widget::Canvas::new()
@@ -321,16 +244,43 @@ fn classifier_tab(ui: &mut conrod::UiCell, ids: &Ids, classifier: &mut Classifie
     let mult = 25.0;
     let image_h = 10.0 / 7.0 * half_width;
 
-    widget::Image::new()
-        .w_h(half_width, image_h)
-        .top_left_of(ids.classifier_canvas)
+    for t_drawing in widget::Toggle::new(classifier.drawing)
+        .mid_left_of(ids.classifier_canvas)
         .down(GAP)
-        .set(ids.classifier_preview_img, ui);
+        .w(ui.kid_area_of(ids.classifier_canvas).unwrap().w())
+        .h(40f64)
+        .label("Drawing")
+        .set(ids.classifier_drawing_toggle, ui)
+        {
+            classifier.drawing = t_drawing;
+        }
 
-    if let Some(NetFile(ref perc, ref labels)) = classifier.net.data {
-        if let Some(ref image) = classifier.image.data {
-            let decoded = if perc.layers[0].num_inputs() - 1 == image.len() {
-                let out = perc.feed_forward(&*image).0;
+    if classifier.drawing {
+        let (cols, rows) = (7, 10);
+        ids.classifier_drawing_cells.resize(cols * rows, &mut ui.widget_id_generator());
+        classifier.drawn_image.resize(cols * rows, false);
+        let mut elems = widget::Matrix::new(cols, rows)
+            .w_h(half_width, image_h)
+            .top_left_of(ids.classifier_canvas)
+            .down(GAP)
+            .set(ids.classifier_drawing_matrix, ui);
+        while let Some(elem) = elems.next(ui) {
+            let i = cols * elem.row + elem.col;
+            for new_v in widget::Toggle::new(classifier.drawn_image[i])
+                .xy_relative_to(ids.classifier_drawing_matrix, [elem.rel_x, elem.rel_y])
+                .w(elem.w)
+                .h(elem.h)
+                .set(ids.classifier_drawing_cells[i], ui)
+                {
+                    classifier.drawn_image[i] = new_v;
+                }
+        }
+
+        if let Some(NetFile(ref perc, ref labels)) = classifier.net.data {
+            let decoded = if perc.layers[0].num_inputs() - 1 == cols * rows {
+                let img: Vec<_> = classifier.drawn_image.iter()
+                    .map(|&x| if x { 1.0 } else { 0.0 }).collect();
+                let out = perc.feed_forward(&img).0;
                 &labels[&out.iter().enumerate()
                     .max_by(|a, b|
                         a.1.partial_cmp(b.1).unwrap()
@@ -343,12 +293,39 @@ fn classifier_tab(ui: &mut conrod::UiCell, ids: &Ids, classifier: &mut Classifie
                 .align_text_middle()
                 .w(half_width)
                 .right(GAP)
-                .y_relative(image_h * 0.15)
+                .y_relative_to(ids.classifier_drawing_matrix, image_h * 0.15)
                 .font_size((image_h * 1.2) as u32)
                 .set(ids.classifier_res, ui);
         }
-    }
+    } else {
+        widget::Image::new()
+            .w_h(half_width, image_h)
+            .top_left_of(ids.classifier_canvas)
+            .down(GAP)
+            .set(ids.classifier_preview_img, ui);
 
+        if let Some(NetFile(ref perc, ref labels)) = classifier.net.data {
+            if let Some(ref image) = classifier.image.data {
+                let decoded = if perc.layers[0].num_inputs() - 1 == image.len() {
+                    let out = perc.feed_forward(&*image).0;
+                    &labels[&out.iter().enumerate()
+                        .max_by(|a, b|
+                            a.1.partial_cmp(b.1).unwrap()
+                        ).unwrap().0]
+                } else {
+                    "ERR"
+                };
+
+                widget::Text::new(&decoded)
+                    .align_text_middle()
+                    .w(half_width)
+                    .right(GAP)
+                    .y_relative(image_h * 0.15)
+                    .font_size((image_h * 1.2) as u32)
+                    .set(ids.classifier_res, ui);
+            }
+        }
+    }
 
     widget::Scrollbar::y_axis(ids.classifier_canvas).auto_hide(true).set(ids.classifier_scrollbar, ui);
 }
