@@ -17,8 +17,13 @@ find_folder = "*"
 nfd = "*"
 flate2 = "*"
 libc = "*"
+flame = "^0.1.2"
+flamer = "^0.1.2"
 
 [dependencies.conrod]
 version = "*"
 default-features = false
 features = ["glium", "glutin"]
+
+[profile.release]
+debug = true
