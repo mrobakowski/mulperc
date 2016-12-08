@@ -21,8 +21,8 @@ fn make_dvector_with_bias(x: &[f64]) -> DVector<f64> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Layer {
-    weights: DMatrix<f64>,
-    activation_function: ActivationFunctionEnum
+    pub weights: DMatrix<f64>,
+    pub activation_function: ActivationFunctionEnum
 }
 
 // the implementations below don't produce valid jsons
@@ -73,9 +73,16 @@ impl Layer {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct SparsityParams {
+    pub sparsity: f64,
+    pub penalty_factor: f64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct MultilayerPerceptron {
     pub layers: Vec<Layer>,
-    learning_rate: f64
+    pub learning_rate: f64,
+    pub sparsity_params: Option<SparsityParams>,
 }
 
 
@@ -125,7 +132,8 @@ impl MultilayerPerceptron {
 
         MultilayerPerceptron {
             layers: l,
-            learning_rate: learning_rate
+            learning_rate: learning_rate,
+            sparsity_params: None,
         }
     }
 
@@ -143,7 +151,12 @@ impl MultilayerPerceptron {
     }
 
     /// Returns delta weights
-    pub fn backpropagate(&self, input: &[f64], target: &[f64]) -> Vec<DMatrix<f64>> {
+    pub fn backpropagate(
+        &self,
+        input: &[f64],
+        target: &[f64],
+        average_activations_of_hidden_layers: Option<&Vec<DVector<f64>>>
+    ) -> Vec<DMatrix<f64>> {
         let expected_output = DVector::from_slice(target.len(), target);
         let (final_out, steps) = self.feed_forward(input);
         let num_steps = steps.len();
@@ -155,13 +168,13 @@ impl MultilayerPerceptron {
 
         let last_layer: &Layer = self.layers.last().unwrap();
 
-        let mut f_prim_z: DVector<_> = last_layer.net(steps.last().unwrap());
-        for x in f_prim_z.iter_mut() {
+        let mut activation_derivative = last_layer.net(steps.last().unwrap());
+        for x in activation_derivative.iter_mut() {
             *x = last_layer.activation_function.derivative(*x);
         }
 
         let error = final_out - expected_output;
-        let output_layer_delta = error * f_prim_z;
+        let output_layer_delta = error * activation_derivative;
 
         let mut deltas = Vec::with_capacity(self.layers.len());
         deltas.push(output_layer_delta);
@@ -171,13 +184,23 @@ impl MultilayerPerceptron {
             let inputs_to_current_hidden_layer = &steps[num_steps - 2 - i];
             let l: &Layer = &self.layers[layer_index - 1];
 
-            let mut f_prim_z: DVector<_> = l.net(inputs_to_current_hidden_layer);
-            for x in f_prim_z.iter_mut() {
+            let mut activation_derivative = l.net(inputs_to_current_hidden_layer);
+            for x in activation_derivative.iter_mut() {
                 *x = l.activation_function.derivative(*x);
             }
 
             let neurons_transposed = self.layers[layer_index].weights.transpose();
-            let delta = &deltas[i] * neurons_transposed * f_prim_z;
+            let mut prev_delta_times_weights = &deltas[i] * neurons_transposed;
+
+            if let Some(SparsityParams { sparsity, penalty_factor }) = self.sparsity_params {
+                if let Some(avg_acts) = average_activations_of_hidden_layers {
+                    let avg_act = avg_acts[layer_index].clone();
+                    let penalty_term = -penalty_factor * (-(avg_act.clone() * (1.0 / sparsity)) + (1.0 - avg_act) * (1.0 / (1.0 - sparsity)));
+                    prev_delta_times_weights += penalty_term;
+                }
+            }
+
+            let delta = prev_delta_times_weights * activation_derivative;
             deltas.push(delta);
         }
 
@@ -188,9 +211,32 @@ impl MultilayerPerceptron {
     }
 
     pub fn learn_batch<I, T>(&mut self, batch: &[(I, T)])
-        where I: Deref<Target = [f64]> + Sync, T: Deref<Target = [f64]> + Sync {
+        where I: Deref<Target = [f64]> + Sync, T: Deref<Target = [f64]> + Sync
+    {
+        let average_activations_of_hidden_layers = if let Some(..) = self.sparsity_params {
+            batch.par_iter()
+                .map(|&(ref i, _)| Some(self.feed_forward(i.deref()).1))
+                .reduce(|| None, |acc, v| {
+                    let mut acc = match acc {
+                        Some(x) => x,
+                        None => return v
+                    };
+                    let v = v.unwrap();
+                    for (i, (x, vv)) in acc.iter_mut().zip(v.into_iter()).enumerate() {
+                        *x += vv;
+                    }
+                    Some(acc)
+                })
+                .map(|mut sum_activations| {
+                    for x in &mut sum_activations {
+                        *x /= batch.len() as f64
+                    }
+                    sum_activations
+                })
+        } else { None };
+
         let mut batch_delta = batch.par_iter()
-            .map(|&(ref i, ref t)| Some(self.backpropagate(i.deref(), t.deref())))
+            .map(|&(ref i, ref t)| Some(self.backpropagate(i.deref(), t.deref(), average_activations_of_hidden_layers.as_ref())))
             .weight_max()
             .reduce(|| None, |acc, v_opt| {
                 acc.and_then(|mut old_v: Vec<DMatrix<f64>>| {
@@ -215,7 +261,7 @@ impl MultilayerPerceptron {
     pub fn learn_batch_no_parallel<I, T>(&mut self, batch: &[(I, T)])
         where I: Deref<Target = [f64]> + Sync, T: Deref<Target = [f64]> + Sync {
         let mut batch_delta = batch.iter()
-            .map(|&(ref i, ref t)| Some(self.backpropagate(i.deref(), t.deref())))
+            .map(|&(ref i, ref t)| Some(self.backpropagate(i.deref(), t.deref(), None)))
             .fold(None, |acc, v_opt| {
                 acc.and_then(|mut old_v: Vec<DMatrix<f64>>| {
                     v_opt.as_ref().map(|v| {
@@ -267,13 +313,14 @@ fn test_backpropagation_matrices_sizes() {
             (2, Tanh(1.0).into())
         ]
     );
-    let deltas = perc.backpropagate(&inputs, &[0.0, 1.0]);
+    let deltas = perc.backpropagate(&inputs, &[0.0, 1.0], None);
     println!("{:?}", deltas.len());
 }
 
 #[cfg(test)]
 use img;
 
+#[ignore]
 #[test]
 fn test_learn_batch() {
     let zero = (img::get_pixels("res/Sieci Neuronowe/0_158975_1.png"), &[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0][..]);

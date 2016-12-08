@@ -1,4 +1,4 @@
-use multilayer_perceptron::MultilayerPerceptron;
+use multilayer_perceptron::{MultilayerPerceptron, SparsityParams};
 use activation_func::*;
 use rand;
 use img::get_img_and_label;
@@ -12,9 +12,14 @@ pub fn run() -> Result<(), &'static str> {
     let images_own: Vec<_> = paths.iter().map(|p| get_img_and_label(p)).collect();
     let images: Vec<_> = images_own.iter().map(|&(ref x, _)| (&x[..], &x[..])).collect();
     let mut autoencoder = MultilayerPerceptron::new(0.3, 7 * 10, &[
-        (20, Tanh(1.0).into()),
+        (50, Sigmoid(1.0).into()),
         (7 * 10, Sigmoid(50.0).into())
     ]);
+
+    autoencoder.sparsity_params = Some(SparsityParams {
+        sparsity: 0.05,
+        penalty_factor: 0.8,
+    });
 
     let sample_size = (images.len() as f64 * 0.1) as usize;
 
@@ -36,7 +41,24 @@ pub fn run() -> Result<(), &'static str> {
         img::save(&i, 7, 10, p);
     }
 
+    extract_features(&autoencoder);
+
     Ok(())
+}
+
+fn extract_features(net: &MultilayerPerceptron) {
+    use na::{Column, Iterable, Row};
+    let ref hidden_layer = net.layers[1];
+    for i in 0..hidden_layer.weights.ncols() {
+        let col = hidden_layer.weights.column(i);
+        let sum: f64 = col.iter().map(|&x| x * x).sum();
+        let l: f64 = sum.sqrt();
+        let xs: Vec<_> = (0..hidden_layer.weights.nrows()).map(|j|
+            hidden_layer.weights[(j, i)] / l
+        ).collect();
+        let name = format!("autoencoded/feature{}.png", i);
+        img::save(&xs, 7, 10, &name);
+    }
 }
 
 fn calc_err(network: &MultilayerPerceptron, data: &[(&[f64], &[f64])]) -> f64 {

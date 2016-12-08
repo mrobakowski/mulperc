@@ -29,6 +29,7 @@ mod mnist;
 mod gzip;
 mod autoencoder;
 mod classifier;
+mod map_in_place;
 
 fn main() {
     let matches = args::get();
