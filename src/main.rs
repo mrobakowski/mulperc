@@ -39,8 +39,8 @@ fn main() {
         classifier::check(matches);
     } else if let Some(_) = matches.subcommand_matches("gui") {
         window::window_loop();
-    } else if let Some(_) = matches.subcommand_matches("autoencoder") {
-        autoencoder::run().unwrap();
+    } else if let Some(matches) = matches.subcommand_matches("autoencoder") {
+        autoencoder::run(matches).unwrap();
     } else {
         window::window_loop();
     }

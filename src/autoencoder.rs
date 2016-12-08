@@ -4,21 +4,22 @@ use rand;
 use img::get_img_and_label;
 use std::fs;
 use img;
+use clap;
 
-pub fn run() -> Result<(), &'static str> {
-    let epoch_count = 5000;
+pub fn run(matches: &clap::ArgMatches<'static>) -> Result<(), &'static str> {
+    let epoch_count: u64 = matches.value_of("epoch-count").and_then(|x| x.parse().ok()).unwrap_or(5000);
 
     let paths: Vec<_> = fs::read_dir("res/Sieci Neuronowe").unwrap().map(|p| p.unwrap().path()).collect();
     let images_own: Vec<_> = paths.iter().map(|p| get_img_and_label(p)).collect();
     let images: Vec<_> = images_own.iter().map(|&(ref x, _)| (&x[..], &x[..])).collect();
     let mut autoencoder = MultilayerPerceptron::new(0.3, 7 * 10, &[
-        (50, Sigmoid(1.0).into()),
-        (7 * 10, Sigmoid(50.0).into())
+        (matches.value_of("hidden-neurons").and_then(|x| x.parse().ok()).unwrap_or(25), Sigmoid(1.0).into()),
+        (7 * 10, Sigmoid(10.0).into())
     ]);
 
     autoencoder.sparsity_params = Some(SparsityParams {
-        sparsity: 0.05,
-        penalty_factor: 0.8,
+        sparsity: matches.value_of("sparsity").and_then(|x| x.parse().ok()).unwrap_or(0.05),
+        penalty_factor: matches.value_of("penalty-factor").and_then(|x| x.parse().ok()).unwrap_or(0.8),
     });
 
     let sample_size = (images.len() as f64 * 0.1) as usize;
@@ -41,8 +42,6 @@ pub fn run() -> Result<(), &'static str> {
         img::save(&i, 7, 10, p);
     }
 
-    println!("foo");
-
     extract_features(&autoencoder);
 
     Ok(())
@@ -52,14 +51,12 @@ fn extract_features(net: &MultilayerPerceptron) {
     use na::{Column, Iterable, Row};
     let ref hidden_layer = net.layers[1];
 
-    println!("cols: {}, rows: {}", hidden_layer.weights.ncols(), hidden_layer.weights.nrows());
-
     for i in 0..hidden_layer.weights.nrows() {
         let row = hidden_layer.weights.row(i);
         let sum: f64 = row.iter().map(|&x| x * x).sum();
         let l: f64 = sum.sqrt();
         let xs: Vec<_> = (0..hidden_layer.weights.ncols()).map(|j|
-            -(hidden_layer.weights[(i, j)] / l)
+            1.0 - (hidden_layer.weights[(i, j)] / l)
         ).collect();
         let name = format!("autoencoded/feature{}.png", i);
         img::save(&xs, 7, 10, &name);
