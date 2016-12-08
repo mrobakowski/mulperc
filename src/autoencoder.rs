@@ -41,6 +41,8 @@ pub fn run() -> Result<(), &'static str> {
         img::save(&i, 7, 10, p);
     }
 
+    println!("foo");
+
     extract_features(&autoencoder);
 
     Ok(())
@@ -49,12 +51,15 @@ pub fn run() -> Result<(), &'static str> {
 fn extract_features(net: &MultilayerPerceptron) {
     use na::{Column, Iterable, Row};
     let ref hidden_layer = net.layers[1];
-    for i in 0..hidden_layer.weights.ncols() {
-        let col = hidden_layer.weights.column(i);
-        let sum: f64 = col.iter().map(|&x| x * x).sum();
+
+    println!("cols: {}, rows: {}", hidden_layer.weights.ncols(), hidden_layer.weights.nrows());
+
+    for i in 0..hidden_layer.weights.nrows() {
+        let row = hidden_layer.weights.row(i);
+        let sum: f64 = row.iter().map(|&x| x * x).sum();
         let l: f64 = sum.sqrt();
-        let xs: Vec<_> = (0..hidden_layer.weights.nrows()).map(|j|
-            hidden_layer.weights[(j, i)] / l
+        let xs: Vec<_> = (0..hidden_layer.weights.ncols()).map(|j|
+            -(hidden_layer.weights[(i, j)] / l)
         ).collect();
         let name = format!("autoencoded/feature{}.png", i);
         img::save(&xs, 7, 10, &name);
