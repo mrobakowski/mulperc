@@ -145,9 +145,9 @@ impl MultilayerPerceptron {
             let new_signal = layer.activate(&signal);
             layer_inputs.push(signal);
             signal = new_signal;
-        }
+        };
 
-            (signal, layer_inputs)
+        (signal, layer_inputs)
     }
 
     /// Returns delta weights
@@ -216,16 +216,18 @@ impl MultilayerPerceptron {
         let average_activations_of_hidden_layers = if let Some(..) = self.sparsity_params {
             batch.par_iter()
                 .map(|&(ref i, _)| Some(self.feed_forward(i.deref()).1))
-                .reduce(|| None, |acc, v| {
-                    let mut acc = match acc {
-                        Some(x) => x,
-                        None => return v
-                    };
-                    let v = v.unwrap();
-                    for (i, (x, vv)) in acc.iter_mut().zip(v.into_iter()).enumerate() {
-                        *x += vv;
-                    }
-                    Some(acc)
+                .weight_max()
+                .reduce(|| None, |acc, v_opt| {
+                    acc.and_then(|mut old_v: Vec<DVector<f64>>| {
+                        v_opt.as_ref().map(|v| {
+                            for (i, x) in old_v.iter_mut().enumerate() {
+                                for (j, xx) in &mut x.at.iter_mut().enumerate() {
+                                    *xx += v[i][j]
+                                }
+                            }
+                            old_v
+                        })
+                    }).or(v_opt)
                 })
                 .map(|mut sum_activations| {
                     for x in &mut sum_activations {

@@ -5,16 +5,18 @@ use img::get_img_and_label;
 use std::fs;
 use img;
 use clap;
+use mnist;
 
 pub fn run(matches: &clap::ArgMatches<'static>) -> Result<(), &'static str> {
     let epoch_count: u64 = matches.value_of("epoch-count").and_then(|x| x.parse().ok()).unwrap_or(5000);
 
-    let paths: Vec<_> = fs::read_dir("res/Sieci Neuronowe").unwrap().map(|p| p.unwrap().path()).collect();
-    let images_own: Vec<_> = paths.iter().map(|p| get_img_and_label(p)).collect();
+    //    let paths: Vec<_> = fs::read_dir("res/Sieci Neuronowe").unwrap().map(|p| p.unwrap().path()).collect();
+    //    let images_own: Vec<_> = paths.iter().map(|p| get_img_and_label(p)).collect();
+    let images_own: Vec<_> = mnist::MnistDigits::default_training_set().unwrap();
     let images: Vec<_> = images_own.iter().map(|&(ref x, _)| (&x[..], &x[..])).collect();
-    let mut autoencoder = MultilayerPerceptron::new(0.3, 7 * 10, &[
+    let mut autoencoder = MultilayerPerceptron::new(0.3, images[0].0.len(), &[
         (matches.value_of("hidden-neurons").and_then(|x| x.parse().ok()).unwrap_or(25), Sigmoid(1.0).into()),
-        (7 * 10, Sigmoid(10.0).into())
+        (images[0].0.len(), Sigmoid(10.0).into())
     ]);
 
     autoencoder.sparsity_params = Some(SparsityParams {
@@ -22,27 +24,37 @@ pub fn run(matches: &clap::ArgMatches<'static>) -> Result<(), &'static str> {
         penalty_factor: matches.value_of("penalty-factor").and_then(|x| x.parse().ok()).unwrap_or(0.8),
     });
 
-    let sample_size = (images.len() as f64 * 0.1) as usize;
+    let sample_size = (images.len() as f64 * 0.01) as usize;
 
     use pbr::ProgressBar;
     let mut pbr = ProgressBar::new(epoch_count);
 
-    for _ in 0..epoch_count {
+    for i in 0..epoch_count {
         let sample: Vec<(&[f64], &[f64])> = rand::sample(&mut rand::thread_rng(), images.iter().cloned(), sample_size);
         autoencoder.learn_batch(&sample);
-        let error = calc_err(&autoencoder, &images);
-        pbr.message(&format!("error: {0:>5.2}  ", error));
+        //        if i % 1000 == 0 {
+        //            error = calc_err(&autoencoder, &images);
+        //        }
+        //        pbr.message(&format!("error: {0:>5.2}  ", error));
         pbr.inc();
     }
 
     let outs: Vec<_> = images.iter().map(|i| autoencoder.feed_forward(&i.0[..]).0.at).collect();
-    for (i, p) in outs.into_iter().zip(paths.iter()) {
+    //    for (i, p) in outs.into_iter().zip(paths.iter()) {
+    for (ii, i) in outs.into_iter().enumerate() {
+        if ii % 1000 != 0 {
+            continue;
+        }
         use std::path::Path;
-        let p = Path::new("autoencoded").join(p);
-        img::save(&i, 7, 10, p);
+        let name = format!("mnist{}.png", ii);
+        let p = Path::new("autoencoded").join(&name);
+        img::save(&i, 28, 28, p);
     }
 
     extract_features(&autoencoder);
+
+    let error = calc_err(&autoencoder, &images);
+    pbr.finish_println(&format!("error: {0:>5.2}  ", error));
 
     Ok(())
 }
@@ -59,7 +71,7 @@ fn extract_features(net: &MultilayerPerceptron) {
             1.0 - (hidden_layer.weights[(i, j)] / l)
         ).collect();
         let name = format!("autoencoded/feature{}.png", i);
-        img::save(&xs, 7, 10, &name);
+        img::save(&xs, 28, 28, &name);
     }
 }
 
